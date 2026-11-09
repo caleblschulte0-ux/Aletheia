@@ -542,7 +542,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T21:54:03Z",
+  "generated_at": "2026-11-09T22:24:41Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -562,7 +562,7 @@
     "workable: field: _": 4,
     "workable: field: _ _ _ _": 1,
     "workable: field: _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _ _ the _ _": 1,
     "workable: field: _ _ _ company _ _ _ _ _": 1,
     "workable: field: _ _ and _": 1,
@@ -578,7 +578,6 @@
     "lever": 21
   },
   "stop_shapes": {
-    "employer_site: apply_not_taken: _ more _ | search jobs | create alert | home | _ _ with _ | jobs _ _": 1,
     "employer_site: no_apply: _ _ | next _": 1,
     "employer_site: no_apply: _ job _ | _ job _ _ job | open menu | _ _": 2,
     "employer_site: no_apply: _ | privacy": 1,
@@ -640,8 +639,7 @@
         "nothing_to_press_on_form/observed": 1
       },
       "no_way_forward": {
-        "nothing_to_press_on_content+no_apply/observed": 6,
-        "unclear_button/observed": 1
+        "nothing_to_press_on_content+no_apply/observed": 6
       },
       "questions": {
         "nothing_to_press_on_form/filled": 4,
