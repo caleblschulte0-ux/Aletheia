@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-08T22:13:29Z",
+  "generated_at": "2026-11-09T06:46:19Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,43 +11,43 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "1efa91174bf7",
-          "date": "2026-11-08T19:50:03Z",
-          "message": "investigate: 2026-11-08T19:50Z"
+          "sha": "e958e3ade0f5",
+          "date": "2026-11-09T06:32:34Z",
+          "message": "core: state checkpoint"
         },
         {
-          "sha": "b9c2e6dc164a",
-          "date": "2026-11-08T16:53:21Z",
-          "message": "brief: 2026-11-08"
+          "sha": "f8780479a852",
+          "date": "2026-11-09T06:01:20Z",
+          "message": "core: state checkpoint"
         },
         {
-          "sha": "b7f89a3aed40",
-          "date": "2026-11-08T13:42:38Z",
-          "message": "investigate: 2026-11-08T13:42Z"
+          "sha": "62161163a7b1",
+          "date": "2026-11-09T05:30:36Z",
+          "message": "core: state checkpoint"
         },
         {
-          "sha": "5acafad37272",
-          "date": "2026-11-08T13:37:05Z",
-          "message": "pulse: 2026-11-08T13:37Z"
+          "sha": "b5c68f666c44",
+          "date": "2026-11-09T04:30:02Z",
+          "message": "core: state checkpoint"
         },
         {
-          "sha": "4aadedc7fe38",
-          "date": "2026-11-08T06:24:36Z",
-          "message": "investigate: 2026-11-08T06:24Z"
+          "sha": "ead3507e55cc",
+          "date": "2026-11-09T03:58:19Z",
+          "message": "core: state checkpoint"
         }
       ],
       "commit": {
-        "sha": "1efa91174bf7",
-        "date": "2026-11-08T19:50:03Z",
-        "message": "investigate: 2026-11-08T19:50Z"
+        "sha": "e958e3ade0f5",
+        "date": "2026-11-09T06:32:34Z",
+        "message": "core: state checkpoint"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-08T13:37:10Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/42485768859"
+          "updated_at": "2026-11-08T22:13:59Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/42529150872"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20867
+          "bytes": 20733
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "257ee05fcbf1",
-          "date": "2026-11-08T21:56:36Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "d3ea1fbf1373",
+          "date": "2026-11-09T05:48:04Z",
+          "message": "claim: mailbox verdicts 2026-11-09T05:48Z [skip ci]"
         },
         {
-          "sha": "b2eb697dc9d9",
-          "date": "2026-11-08T21:47:54Z",
-          "message": "claim: mailbox verdicts 2026-11-08T21:47Z [skip ci]"
+          "sha": "d54aee07aebc",
+          "date": "2026-11-09T05:31:07Z",
+          "message": "doctor: evidence pack + backlog 2026-11-09 [skip ci]"
         },
         {
-          "sha": "2ca7eabf2e59",
-          "date": "2026-11-08T21:06:33Z",
-          "message": "explainer: long-form log [skip ci]"
+          "sha": "b631355783a4",
+          "date": "2026-11-09T04:47:51Z",
+          "message": "claim: mailbox verdicts 2026-11-09T04:47Z [skip ci]"
         },
         {
-          "sha": "3658fe422800",
-          "date": "2026-11-08T20:48:23Z",
-          "message": "claim: mailbox verdicts 2026-11-08T20:48Z [skip ci]"
+          "sha": "6f366e312003",
+          "date": "2026-11-09T03:48:06Z",
+          "message": "claim: mailbox verdicts 2026-11-09T03:48Z [skip ci]"
         },
         {
-          "sha": "7c9ede7f5186",
-          "date": "2026-11-08T19:48:05Z",
-          "message": "claim: mailbox verdicts 2026-11-08T19:48Z [skip ci]"
+          "sha": "975c69e29119",
+          "date": "2026-11-09T02:53:37Z",
+          "message": "claim: mailbox verdicts 2026-11-09T02:53Z [skip ci]"
         }
       ],
       "commit": {
-        "sha": "257ee05fcbf1",
-        "date": "2026-11-08T21:56:36Z",
-        "message": "explainer: update posted log + analytics [skip ci]"
+        "sha": "d3ea1fbf1373",
+        "date": "2026-11-09T05:48:04Z",
+        "message": "claim: mailbox verdicts 2026-11-09T05:48Z [skip ci]"
       },
       "vitals": [
         {
@@ -141,8 +141,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-08T21:20:44Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42524153339"
+          "updated_at": "2026-11-09T05:52:21Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42569157178"
         },
         "third.yml": {
           "status": "completed",
@@ -160,14 +160,14 @@
         "retro.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-08T06:06:45Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42453387735"
+          "updated_at": "2026-11-09T06:39:26Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42574360445"
         },
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-08T11:53:37Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42477707660"
+          "updated_at": "2026-11-09T05:31:12Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42567755582"
         }
       },
       "state_files": {
@@ -403,7 +403,7 @@
           "text": "Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06)"
         },
         "last_progress_at": "2026-08-06T02:51:23Z",
-        "days_quiet": 94,
+        "days_quiet": 95,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -435,7 +435,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-11-08T19:50:03Z",
+        "last_progress_at": "2026-11-09T06:32:34Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
@@ -521,7 +521,7 @@
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
         "last_progress_at": null,
-        "days_quiet": 15,
+        "days_quiet": 16,
         "quiet_at_least": true,
         "commits_7d": 0,
         "open_prs": [
