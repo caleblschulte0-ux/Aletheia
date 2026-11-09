@@ -342,18 +342,18 @@
     "2026-11-09": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 67,
+      "minutes": 73,
       "needs_account": 0,
       "needs_answer": 5,
-      "not_realistic": 27,
-      "offered": 42,
+      "not_realistic": 29,
+      "offered": 45,
       "ready": 1,
-      "runs": 4,
+      "runs": 5,
       "unfit_model": 6,
-      "unfit_pay": 12,
-      "unfit_sales": 6,
+      "unfit_pay": 13,
+      "unfit_sales": 7,
       "unfit_years": 3,
-      "unjudged": 1,
+      "unjudged": 2,
       "unreachable": 6,
       "unreachable_left_till_tomorrow": 6,
       "weak_shot": 0
@@ -541,7 +541,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T17:47:19Z",
+  "generated_at": "2026-11-09T18:18:54Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
