@@ -362,7 +362,7 @@
   "boards": {
     "ashby": 142,
     "bamboohr": 5,
-    "greenhouse": 102,
+    "greenhouse": 103,
     "lever": 81,
     "recruitee": 7,
     "smartrecruiters": 37,
@@ -541,7 +541,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T09:37:32Z",
+  "generated_at": "2026-11-09T10:08:19Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
