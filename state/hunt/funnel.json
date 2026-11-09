@@ -342,15 +342,15 @@
     "2026-11-09": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 89,
+      "minutes": 108,
       "needs_account": 0,
       "needs_answer": 5,
-      "not_realistic": 33,
-      "offered": 49,
+      "not_realistic": 35,
+      "offered": 51,
       "ready": 1,
-      "runs": 7,
-      "unfit_model": 8,
-      "unfit_pay": 15,
+      "runs": 8,
+      "unfit_model": 9,
+      "unfit_pay": 16,
       "unfit_sales": 7,
       "unfit_years": 3,
       "unjudged": 2,
@@ -541,7 +541,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T19:20:06Z",
+  "generated_at": "2026-11-09T19:50:24Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -560,8 +560,7 @@
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 4,
     "workable: field: _ _ _ _": 1,
-    "workable: field: _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 2,
     "workable: field: _ _ _ _ _ _ _ the _ _": 1,
     "workable: field: _ _ _ company _ _ _ _ _": 1,
     "workable: field: _ _ and _": 1,
@@ -633,7 +632,7 @@
         "nothing_to_press_on_captcha/observed": 4
       },
       "error": {
-        "nothing_to_press_on_unread/observed": 3
+        "nothing_to_press_on_unread/observed": 2
       },
       "going_in_circles": {
         "nothing_to_press_on_form/observed": 1
