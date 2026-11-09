@@ -541,7 +541,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T13:12:00Z",
+  "generated_at": "2026-11-09T13:42:25Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -618,7 +618,7 @@
     },
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
-      "nothing_to_press_on_form/filled": 27,
+      "nothing_to_press_on_form/filled": 26,
       "nothing_to_press_on_form/observed": 7,
       "nothing_to_press_on_multi_page_wizard/filled": 14
     },
