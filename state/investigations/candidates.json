@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-09T11:54:13Z",
+  "generated_at": "2026-11-09T22:34:57Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,11 +30,11 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 2,
-      "flagged": 0
+      "rows_scanned": 33,
+      "flagged": 6
     }
   ],
-  "candidate_count": 41,
+  "candidate_count": 47,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -897,6 +897,144 @@
       "source": "EPA ECHO (enforcement & compliance)",
       "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "anomaly",
+      "subject": "94-00324",
+      "summary": "94-00324 (BE20): military / government aircraft",
+      "evidence": {
+        "tail": "94-00324",
+        "type": "BE20",
+        "callsign": "PAT422",
+        "owner_operator": "",
+        "squawk": "4553",
+        "military": true,
+        "foreign_registration": true,
+        "on_ground": false,
+        "altitude_ft": 20000.0,
+        "distance_from_fsd_nm": 45.3,
+        "times_seen": 1,
+        "first_seen": "2026-11-09"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N185MV",
+      "summary": "N185MV (BE20), owner SOUTHWEST AVIATION INC DIV, MIDWEST AVIATION: non-scheduled aircraft 7900ft near FSD (8nm)",
+      "evidence": {
+        "tail": "N185MV",
+        "type": "BE20",
+        "callsign": "MWT185",
+        "owner_operator": "SOUTHWEST AVIATION INC DIV, MIDWEST AVIATION",
+        "squawk": "4533",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": false,
+        "altitude_ft": 7900.0,
+        "distance_from_fsd_nm": 8.0,
+        "times_seen": 1,
+        "first_seen": "2026-11-09"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N2828X",
+      "summary": "N2828X (C177), owner EAGLE SKY PATROL INC: non-scheduled aircraft 1675ft near FSD (11nm)",
+      "evidence": {
+        "tail": "N2828X",
+        "type": "C177",
+        "callsign": "N2828X",
+        "owner_operator": "EAGLE SKY PATROL INC",
+        "squawk": "1200",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": false,
+        "altitude_ft": 1675.0,
+        "distance_from_fsd_nm": 10.7,
+        "times_seen": 1,
+        "first_seen": "2026-11-09"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N40LB",
+      "summary": "N40LB (F900), owner FIRST PREMIER CORP: non-scheduled aircraft 2625ft near FSD (2nm)",
+      "evidence": {
+        "tail": "N40LB",
+        "type": "F900",
+        "callsign": "N40LB",
+        "owner_operator": "FIRST PREMIER CORP",
+        "squawk": "4262",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": false,
+        "altitude_ft": 2625.0,
+        "distance_from_fsd_nm": 1.5,
+        "times_seen": 1,
+        "first_seen": "2026-11-09"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N285KT",
+      "summary": "N285KT (PC12), owner BLINK AVIATION LLC: non-scheduled aircraft 3725ft near FSD (13nm)",
+      "evidence": {
+        "tail": "N285KT",
+        "type": "PC12",
+        "callsign": "N285KT",
+        "owner_operator": "BLINK AVIATION LLC",
+        "squawk": "4212",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": false,
+        "altitude_ft": 3725.0,
+        "distance_from_fsd_nm": 13.3,
+        "times_seen": 1,
+        "first_seen": "2026-11-09"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N78TD",
+      "summary": "N78TD (SR20), owner AIRFLAIR INC: non-scheduled aircraft 6025ft near FSD (14nm)",
+      "evidence": {
+        "tail": "N78TD",
+        "type": "SR20",
+        "callsign": "N78TD",
+        "owner_operator": "AIRFLAIR INC",
+        "squawk": "4274",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": false,
+        "altitude_ft": 6025.0,
+        "distance_from_fsd_nm": 13.5,
+        "times_seen": 1,
+        "first_seen": "2026-11-09"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     }
   ]
 }

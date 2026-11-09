@@ -1,4 +1,11 @@
 {
+  "94-00324": {
+    "count": 1,
+    "first_seen": "2026-11-09",
+    "last_seen": "2026-11-09",
+    "owner_operator": "",
+    "type": "BE20"
+  },
   "DCM2113": {
     "count": 1,
     "first_seen": "2026-11-08",
@@ -20,6 +27,13 @@
     "owner_operator": "MEDARY AVIATION LLC",
     "type": "C172"
   },
+  "N185MV": {
+    "count": 1,
+    "first_seen": "2026-11-09",
+    "last_seen": "2026-11-09",
+    "owner_operator": "SOUTHWEST AVIATION INC DIV, MIDWEST AVIATION",
+    "type": "BE20"
+  },
   "N202FD": {
     "count": 1,
     "first_seen": "2026-11-09",
@@ -40,6 +54,27 @@
     "last_seen": "2026-11-07",
     "owner_operator": "OENOVATION LLC",
     "type": "PC24"
+  },
+  "N2828X": {
+    "count": 1,
+    "first_seen": "2026-11-09",
+    "last_seen": "2026-11-09",
+    "owner_operator": "EAGLE SKY PATROL INC",
+    "type": "C177"
+  },
+  "N285KT": {
+    "count": 1,
+    "first_seen": "2026-11-09",
+    "last_seen": "2026-11-09",
+    "owner_operator": "BLINK AVIATION LLC",
+    "type": "PC12"
+  },
+  "N40LB": {
+    "count": 1,
+    "first_seen": "2026-11-09",
+    "last_seen": "2026-11-09",
+    "owner_operator": "FIRST PREMIER CORP",
+    "type": "F900"
   },
   "N508FR": {
     "count": 1,
@@ -82,6 +117,13 @@
     "last_seen": "2026-11-08",
     "owner_operator": "N761BV LLC",
     "type": "T210"
+  },
+  "N78TD": {
+    "count": 1,
+    "first_seen": "2026-11-09",
+    "last_seen": "2026-11-09",
+    "owner_operator": "AIRFLAIR INC",
+    "type": "SR20"
   },
   "N7920N": {
     "count": 1,
