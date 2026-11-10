@@ -539,10 +539,10 @@
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 4
+      "sent": 5
     }
   },
-  "generated_at": "2026-11-10T22:27:03Z",
+  "generated_at": "2026-11-10T23:28:05Z",
   "question_shapes": {
     "employer_site: field: _": 2,
     "employer_site: field: _ _": 2,
@@ -550,6 +550,7 @@
     "employer_site: field: _ the _ would _ _ the _ _ have": 1,
     "employer_site: field: address _": 1,
     "employer_site: field: are you _ _": 1,
+    "employer_site: field: country united states the _ would _ _ the _ _ have": 1,
     "employer_site: field: gender": 1,
     "employer_site: field: how can _ _ you": 1,
     "employer_site: field: veteran _": 1,
@@ -562,7 +563,6 @@
     "lever: radio: what is your _ range": 1,
     "lever: select: _ _ to _ _": 1,
     "lever: text: _": 1,
-    "lever: text: _ _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 3,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
@@ -575,11 +575,11 @@
     "workable: radio: have you been convicted of a felony": 1,
     "workable: textarea: _ _ _ you to this position": 1
   },
-  "sent_all_time": 349,
+  "sent_all_time": 350,
   "sent_by_system": {
     "ashbyhq": 23,
     "employer_site": 11,
-    "lever": 20
+    "lever": 21
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: _ _ | _": 1,
@@ -669,7 +669,7 @@
     "interviews": 14,
     "rejections": 11,
     "replies": 34,
-    "sent": 54
+    "sent": 55
   },
   "waiting": {
     "asked_about": {
@@ -679,7 +679,7 @@
       "demographic_race": 1,
       "demographic_veteran": 1,
       "on_site": 4,
-      "other": 25,
+      "other": 24,
       "referral": 1,
       "travel": 1,
       "work_authorization": 1,
@@ -712,7 +712,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 29,
+    "needs_answer": 28,
     "oldest_days": 58,
     "to_send": 0
   },
