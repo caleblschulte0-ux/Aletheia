@@ -340,6 +340,23 @@
       "unreachable_ApplyError": 6,
       "unreachable_left_till_tomorrow": 6,
       "weak_shot": 0
+    },
+    "2026-11-10": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 30,
+      "needs_account": 0,
+      "needs_answer": 3,
+      "not_realistic": 6,
+      "offered": 17,
+      "ready": 0,
+      "runs": 2,
+      "unfit_language": 1,
+      "unfit_model": 2,
+      "unfit_sales": 3,
+      "unjudged": 0,
+      "unreachable": 0,
+      "weak_shot": 0
     }
   },
   "boards": {
@@ -355,11 +372,11 @@
     "days": 3,
     "why": {
       "left_captcha": 5,
-      "left_error": 2,
+      "left_error": 3,
       "left_no_way_forward": 5,
       "left_questions": 13,
       "left_sign_in": 1,
-      "not_realistic": 1
+      "not_realistic": 4
     }
   },
   "days": {
@@ -516,15 +533,15 @@
       "sent": 0
     },
     "2026-11-10": {
-      "filled": 16,
-      "found": 16,
+      "filled": 18,
+      "found": 22,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-10T06:37:05Z",
+  "generated_at": "2026-11-10T08:09:12Z",
   "question_shapes": {
     "employer_site: field: _": 2,
     "employer_site: field: _ _": 2,
@@ -534,7 +551,6 @@
     "employer_site: field: country united states the _ would _ _ the _ _ have": 1,
     "employer_site: field: gender": 1,
     "employer_site: field: state select a state the _ would _ _ the _ _": 1,
-    "employer_site: field: this position is _ in _ city _ are you able to": 1,
     "employer_site: field: veteran _": 1,
     "employer_site: field: work _": 1,
     "lever: checkbox: _": 1,
@@ -546,7 +562,6 @@
     "lever: select: _ _ to _ _": 1,
     "lever: text: _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
-    "recruitee: checkbox: what is your preferred work _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 3,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
@@ -554,7 +569,10 @@
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
     "workable: field: _ _ _ _ _": 1,
-    "workable: field: resume _": 7
+    "workable: field: resume _": 7,
+    "workable: radio: are you willing to _ a background check _ _": 1,
+    "workable: radio: have you been convicted of a felony": 1,
+    "workable: textarea: _ _ _ you to this position": 1
   },
   "sent_all_time": 345,
   "sent_by_system": {
@@ -579,7 +597,7 @@
     "error": {
       "nothing_to_press_on_error/observed": 1,
       "nothing_to_press_on_unread/filled": 2,
-      "nothing_to_press_on_unread/nothing": 1,
+      "nothing_to_press_on_unread/nothing": 2,
       "nothing_to_press_on_unread/observed": 7
     },
     "going_in_circles": {
@@ -621,6 +639,7 @@
       },
       "error": {
         "nothing_to_press_on_unread/filled": 1,
+        "nothing_to_press_on_unread/nothing": 1,
         "nothing_to_press_on_unread/observed": 1
       },
       "going_in_circles": {
@@ -641,8 +660,8 @@
     }
   },
   "totals": {
-    "filled": 111,
-    "found": 495,
+    "filled": 113,
+    "found": 501,
     "interviews": 14,
     "rejections": 11,
     "replies": 34,
@@ -651,12 +670,15 @@
   "waiting": {
     "asked_about": {
       "address": 1,
+      "background_check": 1,
       "demographic_gender": 2,
       "demographic_race": 1,
       "demographic_veteran": 1,
       "on_site": 4,
       "other": 23,
+      "referral": 1,
       "travel": 1,
+      "work_authorization": 1,
       "years_experience": 2
     },
     "closed": {
@@ -664,7 +686,7 @@
       "gone_on_lever": 2,
       "gone_on_workable": 115,
       "left_captcha": 36,
-      "left_error": 11,
+      "left_error": 12,
       "left_going_in_circles": 4,
       "left_no_way_forward": 53,
       "left_posting_closed": 2,
@@ -672,7 +694,7 @@
       "left_sign_in": 10,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
-      "not_realistic": 72
+      "not_realistic": 75
     },
     "failed": 19,
     "failed_because": {
@@ -686,7 +708,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 25,
+    "needs_answer": 27,
     "oldest_days": 58,
     "to_send": 0
   },
