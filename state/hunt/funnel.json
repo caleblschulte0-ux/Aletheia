@@ -342,20 +342,20 @@
     "2026-11-09": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 157,
+      "minutes": 160,
       "needs_account": 1,
       "needs_answer": 18,
       "not_realistic": 37,
-      "offered": 73,
+      "offered": 75,
       "ready": 2,
-      "runs": 13,
+      "runs": 14,
       "unfit_model": 10,
       "unfit_pay": 16,
       "unfit_sales": 8,
       "unfit_years": 3,
       "unjudged": 2,
-      "unreachable": 10,
-      "unreachable_ApplyError": 4,
+      "unreachable": 12,
+      "unreachable_ApplyError": 6,
       "unreachable_left_till_tomorrow": 6,
       "weak_shot": 0
     }
@@ -543,7 +543,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-10T04:33:56Z",
+  "generated_at": "2026-11-10T05:04:17Z",
   "question_shapes": {
     "employer_site: field: _": 2,
     "employer_site: field: _ _": 2,
@@ -583,7 +583,6 @@
   },
   "stop_shapes": {
     "employer_site: no_apply: _ _ | next _": 1,
-    "employer_site: no_apply: _ job _ | _ job _ _ job | open menu | _ _": 1,
     "employer_site: no_apply: _ | _ _ | share _ _": 1,
     "employer_site: no_apply: _ | privacy": 1,
     "employer_site: no_apply: back | _ _ | _": 1,
@@ -611,7 +610,7 @@
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
       "nothing_to_press_on_content+empty_page/observed": 2,
       "nothing_to_press_on_content+no_apply/filled": 4,
-      "nothing_to_press_on_content+no_apply/observed": 30,
+      "nothing_to_press_on_content+no_apply/observed": 29,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 4,
       "nothing_to_press_on_form+no_apply/observed": 5,
@@ -648,7 +647,7 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 7
+        "nothing_to_press_on_content+no_apply/observed": 6
       },
       "questions": {
         "nothing_to_press_on_form/filled": 4,
