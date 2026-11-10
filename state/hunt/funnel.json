@@ -543,7 +543,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-10T00:57:57Z",
+  "generated_at": "2026-11-10T01:59:07Z",
   "question_shapes": {
     "employer_site: field: _": 2,
     "employer_site: field: _ _": 2,
@@ -583,7 +583,7 @@
   },
   "stop_shapes": {
     "employer_site: no_apply: _ _ | next _": 1,
-    "employer_site: no_apply: _ job _ | _ job _ _ job | open menu | _ _": 2,
+    "employer_site: no_apply: _ job _ | _ job _ _ job | open menu | _ _": 1,
     "employer_site: no_apply: _ | _ _ | share _ _": 1,
     "employer_site: no_apply: _ | privacy": 1,
     "employer_site: no_apply: back | _ _ | _": 1,
@@ -647,7 +647,7 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 8
+        "nothing_to_press_on_content+no_apply/observed": 7
       },
       "questions": {
         "nothing_to_press_on_form/filled": 4,
@@ -706,7 +706,7 @@
     },
     "needs_account": 0,
     "needs_answer": 25,
-    "oldest_days": 57,
+    "oldest_days": 58,
     "to_send": 0
   },
   "window_days": 30
