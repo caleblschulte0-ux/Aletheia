@@ -104,6 +104,13 @@
     "owner_operator": "AIR AMERICA LLC",
     "type": "C150"
   },
+  "N62SD": {
+    "count": 1,
+    "first_seen": "2026-11-10",
+    "last_seen": "2026-11-10",
+    "owner_operator": "USDF2 LLC",
+    "type": "B350"
+  },
   "N694QS": {
     "count": 1,
     "first_seen": "2026-11-06",

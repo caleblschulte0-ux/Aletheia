@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-10T17:11:49Z",
+  "generated_at": "2026-11-10T23:36:49Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,11 +30,11 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 33,
-      "flagged": 5
+      "rows_scanned": 20,
+      "flagged": 1
     }
   ],
-  "candidate_count": 46,
+  "candidate_count": 42,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -901,111 +901,19 @@
     {
       "check": "sky_watch",
       "kind": "context",
-      "subject": "N889SD",
-      "summary": "N889SD (C172), owner MEDARY AVIATION LLC: non-scheduled aircraft 4275ft near FSD (4nm)",
+      "subject": "N62SD",
+      "summary": "N62SD (B350), owner USDF2 LLC: non-scheduled aircraft 2750ft near FSD (5nm)",
       "evidence": {
-        "tail": "N889SD",
-        "type": "C172",
-        "callsign": "N889SD",
-        "owner_operator": "MEDARY AVIATION LLC",
-        "squawk": "0157",
+        "tail": "N62SD",
+        "type": "B350",
+        "callsign": "N62SD",
+        "owner_operator": "USDF2 LLC",
+        "squawk": "4505",
         "military": false,
         "foreign_registration": false,
         "on_ground": false,
-        "altitude_ft": 4275.0,
-        "distance_from_fsd_nm": 4.3,
-        "times_seen": 1,
-        "first_seen": "2026-11-10"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N919SH",
-      "summary": "N919SH (EC45), owner AIRBUS HELICOPTERS INC: non-scheduled aircraft 2250ft near FSD (5nm)",
-      "evidence": {
-        "tail": "N919SH",
-        "type": "EC45",
-        "callsign": "N919SH",
-        "owner_operator": "AIRBUS HELICOPTERS INC",
-        "squawk": "0155",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 2250.0,
+        "altitude_ft": 2750.0,
         "distance_from_fsd_nm": 5.0,
-        "times_seen": 1,
-        "first_seen": "2026-11-10"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N8186U",
-      "summary": "N8186U (C172), owner LAKE AREA TECHNICAL COLLEGE: non-scheduled aircraft 2100ft near FSD (0nm)",
-      "evidence": {
-        "tail": "N8186U",
-        "type": "C172",
-        "callsign": "N8186U",
-        "owner_operator": "LAKE AREA TECHNICAL COLLEGE",
-        "squawk": "0156",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 2100.0,
-        "distance_from_fsd_nm": 0.5,
-        "times_seen": 1,
-        "first_seen": "2026-11-10"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N316AB",
-      "summary": "N316AB (SR22): non-scheduled aircraft 2300ft near FSD (1nm)",
-      "evidence": {
-        "tail": "N316AB",
-        "type": "SR22",
-        "callsign": "N316AB",
-        "owner_operator": "",
-        "squawk": "0147",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 2300.0,
-        "distance_from_fsd_nm": 0.5,
-        "times_seen": 1,
-        "first_seen": "2026-11-10"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N722DW",
-      "summary": "N722DW (RV7), owner WEILER DOUGLAS C: non-scheduled aircraft 6800ft near FSD (7nm)",
-      "evidence": {
-        "tail": "N722DW",
-        "type": "RV7",
-        "callsign": "N722DW",
-        "owner_operator": "WEILER DOUGLAS C",
-        "squawk": "4222",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 6800.0,
-        "distance_from_fsd_nm": 7.5,
         "times_seen": 1,
         "first_seen": "2026-11-10"
       },
