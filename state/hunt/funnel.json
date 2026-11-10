@@ -344,19 +344,19 @@
     "2026-11-10": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 132,
+      "minutes": 137,
       "needs_account": 0,
       "needs_answer": 9,
-      "not_realistic": 47,
-      "offered": 94,
+      "not_realistic": 52,
+      "offered": 100,
       "ready": 8,
-      "runs": 14,
+      "runs": 15,
       "unfit_language": 1,
-      "unfit_model": 9,
-      "unfit_sales": 37,
+      "unfit_model": 11,
+      "unfit_sales": 40,
       "unjudged": 0,
-      "unreachable": 1,
-      "unreachable_ApplyError": 1,
+      "unreachable": 2,
+      "unreachable_ApplyError": 2,
       "weak_shot": 0
     }
   },
@@ -374,7 +374,7 @@
     "why": {
       "left_captcha": 5,
       "left_error": 3,
-      "left_no_way_forward": 8,
+      "left_no_way_forward": 9,
       "left_questions": 13,
       "left_sign_in": 1,
       "not_realistic": 12
@@ -534,7 +534,7 @@
       "sent": 0
     },
     "2026-11-10": {
-      "filled": 29,
+      "filled": 28,
       "found": 44,
       "interviews": 0,
       "rejections": 0,
@@ -542,7 +542,7 @@
       "sent": 4
     }
   },
-  "generated_at": "2026-11-10T20:24:18Z",
+  "generated_at": "2026-11-10T20:55:09Z",
   "question_shapes": {
     "employer_site: field: _": 2,
     "employer_site: field: _ _": 2,
@@ -569,7 +569,7 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _": 1,
     "workable: field: resume _": 6,
     "workable: radio: are you willing to _ a background check _ _": 1,
     "workable: radio: have you been convicted of a felony": 1,
@@ -582,6 +582,7 @@
     "lever": 20
   },
   "stop_shapes": {
+    "employer_site: apply_not_taken: _ _ | _": 1,
     "employer_site: empty_page: none": 2,
     "employer_site: no_apply: _ _ _ _ _ | _ _ | _ | _ settings menu | open _": 1,
     "employer_site: no_apply: _ _ | next _": 1,
@@ -612,6 +613,7 @@
       "nothing_to_press_on_content+empty_page/observed": 3,
       "nothing_to_press_on_content+no_apply/filled": 4,
       "nothing_to_press_on_content+no_apply/observed": 30,
+      "nothing_to_press_on_form+apply_not_taken/filled": 1,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 4,
       "nothing_to_press_on_form+no_apply/observed": 5,
@@ -648,7 +650,8 @@
         "nothing_to_press_on_content+empty_page/filled": 1,
         "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 5
+        "nothing_to_press_on_content+no_apply/observed": 5,
+        "nothing_to_press_on_form+apply_not_taken/filled": 1
       },
       "questions": {
         "nothing_to_press_on_form/filled": 4,
@@ -661,7 +664,7 @@
     }
   },
   "totals": {
-    "filled": 124,
+    "filled": 123,
     "found": 523,
     "interviews": 14,
     "rejections": 11,
@@ -689,7 +692,7 @@
       "left_captcha": 36,
       "left_error": 12,
       "left_going_in_circles": 4,
-      "left_no_way_forward": 56,
+      "left_no_way_forward": 57,
       "left_posting_closed": 2,
       "left_questions": 45,
       "left_sign_in": 10,
@@ -709,7 +712,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 29,
+    "needs_answer": 28,
     "oldest_days": 58,
     "to_send": 0
   },
