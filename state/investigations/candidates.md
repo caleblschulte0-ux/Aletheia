@@ -1,12 +1,12 @@
 # Investigations candidates - SIOUX FALLS, SD
 
-Generated 2026-11-09T22:34:57Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
+Generated 2026-11-10T07:33:55Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
 
 - source `cms_partd`: ok, scanned 1742 rows, 35 flagged
 - source `fda_recalls`: ok, scanned 24 rows, 0 flagged
 - source `epa_echo`: ok, scanned 13269 rows, 6 flagged
 - source `cms_care_compare_nh`: ok, scanned 96 rows, 0 flagged
-- source `sky_watch`: ok, scanned 33 rows, 6 flagged
+- source `sky_watch`: ok, scanned 1 rows, 0 flagged
 
 ## 1. Welch, David  (cms_partd_opioids)
 - Physician Assistant prescriber with 1091 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty
@@ -212,34 +212,4 @@ Generated 2026-11-09T22:34:57Z by the deterministic scanner. Each line is a QUES
 - SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD: EPA violations, 1 formal action(s) [No Violation Identified]
 - evidence: {"registry_id": "110000427823", "significant_noncomplier": false, "formal_actions": 1, "total_penalties": 0.0, "quarters_with_noncompliance": "2", "compliance": {"overall": "No Violation Identified", "air_caa": "No Violation Identified", "water_cwa": "No Violation Identified", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats", "last_inspection": "08/20/2026", "address": "1400 NORTH WEBER AVENUE", "city": "SIOUX FALLS"}
 - next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
-
-## 42. 94-00324  (sky_watch)
-- 94-00324 (BE20): military / government aircraft
-- evidence: {"tail": "94-00324", "type": "BE20", "callsign": "PAT422", "owner_operator": "", "squawk": "4553", "military": true, "foreign_registration": true, "on_ground": false, "altitude_ft": 20000.0, "distance_from_fsd_nm": 45.3, "times_seen": 1, "first_seen": "2026-11-09"}
-- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
-
-## 43. N185MV  (sky_watch)
-- N185MV (BE20), owner SOUTHWEST AVIATION INC DIV, MIDWEST AVIATION: non-scheduled aircraft 7900ft near FSD (8nm)
-- evidence: {"tail": "N185MV", "type": "BE20", "callsign": "MWT185", "owner_operator": "SOUTHWEST AVIATION INC DIV, MIDWEST AVIATION", "squawk": "4533", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 7900.0, "distance_from_fsd_nm": 8.0, "times_seen": 1, "first_seen": "2026-11-09"}
-- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
-
-## 44. N2828X  (sky_watch)
-- N2828X (C177), owner EAGLE SKY PATROL INC: non-scheduled aircraft 1675ft near FSD (11nm)
-- evidence: {"tail": "N2828X", "type": "C177", "callsign": "N2828X", "owner_operator": "EAGLE SKY PATROL INC", "squawk": "1200", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 1675.0, "distance_from_fsd_nm": 10.7, "times_seen": 1, "first_seen": "2026-11-09"}
-- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
-
-## 45. N40LB  (sky_watch)
-- N40LB (F900), owner FIRST PREMIER CORP: non-scheduled aircraft 2625ft near FSD (2nm)
-- evidence: {"tail": "N40LB", "type": "F900", "callsign": "N40LB", "owner_operator": "FIRST PREMIER CORP", "squawk": "4262", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 2625.0, "distance_from_fsd_nm": 1.5, "times_seen": 1, "first_seen": "2026-11-09"}
-- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
-
-## 46. N285KT  (sky_watch)
-- N285KT (PC12), owner BLINK AVIATION LLC: non-scheduled aircraft 3725ft near FSD (13nm)
-- evidence: {"tail": "N285KT", "type": "PC12", "callsign": "N285KT", "owner_operator": "BLINK AVIATION LLC", "squawk": "4212", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 3725.0, "distance_from_fsd_nm": 13.3, "times_seen": 1, "first_seen": "2026-11-09"}
-- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
-
-## 47. N78TD  (sky_watch)
-- N78TD (SR20), owner AIRFLAIR INC: non-scheduled aircraft 6025ft near FSD (14nm)
-- evidence: {"tail": "N78TD", "type": "SR20", "callsign": "N78TD", "owner_operator": "AIRFLAIR INC", "squawk": "4274", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 6025.0, "distance_from_fsd_nm": 13.5, "times_seen": 1, "first_seen": "2026-11-09"}
-- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
 
