@@ -1,12 +1,12 @@
 # Investigations candidates - SIOUX FALLS, SD
 
-Generated 2026-11-10T07:33:55Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
+Generated 2026-11-10T17:11:49Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
 
 - source `cms_partd`: ok, scanned 1742 rows, 35 flagged
 - source `fda_recalls`: ok, scanned 24 rows, 0 flagged
 - source `epa_echo`: ok, scanned 13269 rows, 6 flagged
 - source `cms_care_compare_nh`: ok, scanned 96 rows, 0 flagged
-- source `sky_watch`: ok, scanned 1 rows, 0 flagged
+- source `sky_watch`: ok, scanned 33 rows, 5 flagged
 
 ## 1. Welch, David  (cms_partd_opioids)
 - Physician Assistant prescriber with 1091 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty
@@ -212,4 +212,29 @@ Generated 2026-11-10T07:33:55Z by the deterministic scanner. Each line is a QUES
 - SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD: EPA violations, 1 formal action(s) [No Violation Identified]
 - evidence: {"registry_id": "110000427823", "significant_noncomplier": false, "formal_actions": 1, "total_penalties": 0.0, "quarters_with_noncompliance": "2", "compliance": {"overall": "No Violation Identified", "air_caa": "No Violation Identified", "water_cwa": "No Violation Identified", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats", "last_inspection": "08/20/2026", "address": "1400 NORTH WEBER AVENUE", "city": "SIOUX FALLS"}
 - next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
+
+## 42. N889SD  (sky_watch)
+- N889SD (C172), owner MEDARY AVIATION LLC: non-scheduled aircraft 4275ft near FSD (4nm)
+- evidence: {"tail": "N889SD", "type": "C172", "callsign": "N889SD", "owner_operator": "MEDARY AVIATION LLC", "squawk": "0157", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 4275.0, "distance_from_fsd_nm": 4.3, "times_seen": 1, "first_seen": "2026-11-10"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
+
+## 43. N919SH  (sky_watch)
+- N919SH (EC45), owner AIRBUS HELICOPTERS INC: non-scheduled aircraft 2250ft near FSD (5nm)
+- evidence: {"tail": "N919SH", "type": "EC45", "callsign": "N919SH", "owner_operator": "AIRBUS HELICOPTERS INC", "squawk": "0155", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 2250.0, "distance_from_fsd_nm": 5.0, "times_seen": 1, "first_seen": "2026-11-10"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
+
+## 44. N8186U  (sky_watch)
+- N8186U (C172), owner LAKE AREA TECHNICAL COLLEGE: non-scheduled aircraft 2100ft near FSD (0nm)
+- evidence: {"tail": "N8186U", "type": "C172", "callsign": "N8186U", "owner_operator": "LAKE AREA TECHNICAL COLLEGE", "squawk": "0156", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 2100.0, "distance_from_fsd_nm": 0.5, "times_seen": 1, "first_seen": "2026-11-10"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
+
+## 45. N316AB  (sky_watch)
+- N316AB (SR22): non-scheduled aircraft 2300ft near FSD (1nm)
+- evidence: {"tail": "N316AB", "type": "SR22", "callsign": "N316AB", "owner_operator": "", "squawk": "0147", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 2300.0, "distance_from_fsd_nm": 0.5, "times_seen": 1, "first_seen": "2026-11-10"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
+
+## 46. N722DW  (sky_watch)
+- N722DW (RV7), owner WEILER DOUGLAS C: non-scheduled aircraft 6800ft near FSD (7nm)
+- evidence: {"tail": "N722DW", "type": "RV7", "callsign": "N722DW", "owner_operator": "WEILER DOUGLAS C", "squawk": "4222", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 6800.0, "distance_from_fsd_nm": 7.5, "times_seen": 1, "first_seen": "2026-11-10"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
 

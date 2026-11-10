@@ -69,6 +69,13 @@
     "owner_operator": "BLINK AVIATION LLC",
     "type": "PC12"
   },
+  "N316AB": {
+    "count": 1,
+    "first_seen": "2026-11-10",
+    "last_seen": "2026-11-10",
+    "owner_operator": "",
+    "type": "SR22"
+  },
   "N40LB": {
     "count": 1,
     "first_seen": "2026-11-09",
@@ -104,6 +111,13 @@
     "owner_operator": "",
     "type": "C68A"
   },
+  "N722DW": {
+    "count": 1,
+    "first_seen": "2026-11-10",
+    "last_seen": "2026-11-10",
+    "owner_operator": "WEILER DOUGLAS C",
+    "type": "RV7"
+  },
   "N7278X": {
     "count": 1,
     "first_seen": "2026-11-08",
@@ -132,11 +146,32 @@
     "owner_operator": "N7920N LLC",
     "type": "P28A"
   },
+  "N8186U": {
+    "count": 1,
+    "first_seen": "2026-11-10",
+    "last_seen": "2026-11-10",
+    "owner_operator": "LAKE AREA TECHNICAL COLLEGE",
+    "type": "C172"
+  },
+  "N889SD": {
+    "count": 1,
+    "first_seen": "2026-11-10",
+    "last_seen": "2026-11-10",
+    "owner_operator": "MEDARY AVIATION LLC",
+    "type": "C172"
+  },
   "N901LB": {
     "count": 1,
     "first_seen": "2026-11-08",
     "last_seen": "2026-11-08",
     "owner_operator": "NWL CAPITAL HOLDINGS LLC",
     "type": "C560"
+  },
+  "N919SH": {
+    "count": 1,
+    "first_seen": "2026-11-10",
+    "last_seen": "2026-11-10",
+    "owner_operator": "AIRBUS HELICOPTERS INC",
+    "type": "EC45"
   }
 }
