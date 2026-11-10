@@ -344,16 +344,16 @@
     "2026-11-10": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 137,
+      "minutes": 154,
       "needs_account": 0,
-      "needs_answer": 9,
-      "not_realistic": 52,
-      "offered": 100,
-      "ready": 8,
-      "runs": 15,
+      "needs_answer": 10,
+      "not_realistic": 54,
+      "offered": 104,
+      "ready": 9,
+      "runs": 17,
       "unfit_language": 1,
       "unfit_model": 11,
-      "unfit_sales": 40,
+      "unfit_sales": 42,
       "unjudged": 0,
       "unreachable": 2,
       "unreachable_ApplyError": 2,
@@ -377,7 +377,7 @@
       "left_no_way_forward": 9,
       "left_questions": 13,
       "left_sign_in": 1,
-      "not_realistic": 12
+      "not_realistic": 13
     }
   },
   "days": {
@@ -534,22 +534,22 @@
       "sent": 0
     },
     "2026-11-10": {
-      "filled": 28,
-      "found": 44,
+      "filled": 30,
+      "found": 47,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 4
     }
   },
-  "generated_at": "2026-11-10T21:56:19Z",
+  "generated_at": "2026-11-10T22:27:03Z",
   "question_shapes": {
     "employer_site: field: _": 2,
     "employer_site: field: _ _": 2,
     "employer_site: field: _ or select _ _ _": 1,
+    "employer_site: field: _ the _ would _ _ the _ _ have": 1,
     "employer_site: field: address _": 1,
     "employer_site: field: are you _ _": 1,
-    "employer_site: field: country united states the _ would _ _ the _ _ have": 1,
     "employer_site: field: gender": 1,
     "employer_site: field: how can _ _ you": 1,
     "employer_site: field: veteran _": 1,
@@ -664,8 +664,8 @@
     }
   },
   "totals": {
-    "filled": 123,
-    "found": 523,
+    "filled": 125,
+    "found": 526,
     "interviews": 14,
     "rejections": 11,
     "replies": 34,
@@ -679,7 +679,7 @@
       "demographic_race": 1,
       "demographic_veteran": 1,
       "on_site": 4,
-      "other": 24,
+      "other": 25,
       "referral": 1,
       "travel": 1,
       "work_authorization": 1,
@@ -698,11 +698,11 @@
       "left_sign_in": 10,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
-      "not_realistic": 83
+      "not_realistic": 84
     },
-    "failed": 20,
+    "failed": 21,
     "failed_because": {
-      "ApplyError": 13,
+      "ApplyError": 14,
       "TargetClosedError": 3,
       "browser_spending": 2,
       "submit_would_not_click": 2
@@ -712,7 +712,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 28,
+    "needs_answer": 29,
     "oldest_days": 58,
     "to_send": 0
   },
