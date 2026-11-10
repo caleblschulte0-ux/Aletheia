@@ -344,16 +344,16 @@
     "2026-11-10": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 74,
+      "minutes": 89,
       "needs_account": 0,
       "needs_answer": 3,
-      "not_realistic": 19,
-      "offered": 48,
+      "not_realistic": 20,
+      "offered": 49,
       "ready": 4,
-      "runs": 7,
+      "runs": 8,
       "unfit_language": 1,
       "unfit_model": 6,
-      "unfit_sales": 12,
+      "unfit_sales": 13,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -541,7 +541,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-10T15:19:08Z",
+  "generated_at": "2026-11-10T15:49:08Z",
   "question_shapes": {
     "employer_site: field: _": 2,
     "employer_site: field: _ _": 2,
@@ -568,7 +568,7 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: resume _": 6,
     "workable: radio: are you willing to _ a background check _ _": 1,
     "workable: radio: have you been convicted of a felony": 1,
@@ -633,16 +633,13 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 3,
+        "nothing_to_press_on_captcha/filled": 2,
         "nothing_to_press_on_captcha/observed": 4
       },
       "error": {
         "nothing_to_press_on_unread/filled": 1,
         "nothing_to_press_on_unread/nothing": 1,
         "nothing_to_press_on_unread/observed": 1
-      },
-      "going_in_circles": {
-        "nothing_to_press_on_form/observed": 1
       },
       "no_way_forward": {
         "nothing_to_press_on_content+no_apply/filled": 1,
