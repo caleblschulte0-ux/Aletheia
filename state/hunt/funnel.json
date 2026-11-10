@@ -542,7 +542,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T23:25:48Z",
+  "generated_at": "2026-11-10T00:27:04Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -559,17 +559,9 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 4,
-    "workable: field: _ _ _ _": 1,
+    "workable: field: _": 1,
     "workable: field: _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _ the _ _": 1,
-    "workable: field: _ _ _ _ on": 1,
-    "workable: field: _ _ _ company _ _ _ _ _": 1,
-    "workable: field: _ _ and _": 1,
-    "workable: field: _ per _": 1,
-    "workable: field: open _": 1,
-    "workable: field: resume _": 6,
-    "workable: field: us": 1
+    "workable: field: resume _": 7
   },
   "sent_all_time": 345,
   "sent_by_system": {
@@ -604,7 +596,7 @@
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
       "nothing_to_press_on_content+empty_page/observed": 2,
       "nothing_to_press_on_content+no_apply/filled": 3,
-      "nothing_to_press_on_content+no_apply/observed": 29,
+      "nothing_to_press_on_content+no_apply/observed": 27,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 4,
       "nothing_to_press_on_form+no_apply/observed": 5,
@@ -617,11 +609,11 @@
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
       "nothing_to_press_on_form/filled": 26,
-      "nothing_to_press_on_form/observed": 7,
+      "nothing_to_press_on_form/observed": 6,
       "nothing_to_press_on_multi_page_wizard/filled": 14
     },
     "sign_in": {
-      "nothing_to_press_on_account_login/observed": 10,
+      "nothing_to_press_on_account_login/observed": 9,
       "nothing_to_press_on_account_login/submit_clicked": 1
     }
   },
