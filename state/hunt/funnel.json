@@ -342,20 +342,20 @@
     "2026-11-09": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 154,
+      "minutes": 157,
       "needs_account": 1,
       "needs_answer": 18,
       "not_realistic": 37,
-      "offered": 71,
+      "offered": 73,
       "ready": 2,
-      "runs": 12,
+      "runs": 13,
       "unfit_model": 10,
       "unfit_pay": 16,
       "unfit_sales": 8,
       "unfit_years": 3,
       "unjudged": 2,
-      "unreachable": 8,
-      "unreachable_ApplyError": 2,
+      "unreachable": 10,
+      "unreachable_ApplyError": 4,
       "unreachable_left_till_tomorrow": 6,
       "weak_shot": 0
     }
@@ -543,7 +543,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-10T03:32:56Z",
+  "generated_at": "2026-11-10T04:33:56Z",
   "question_shapes": {
     "employer_site: field: _": 2,
     "employer_site: field: _ _": 2,
@@ -572,7 +572,7 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 1,
     "workable: field: resume _": 7
   },
   "sent_all_time": 345,
