@@ -344,16 +344,16 @@
     "2026-11-10": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 89,
+      "minutes": 92,
       "needs_account": 0,
       "needs_answer": 3,
-      "not_realistic": 20,
-      "offered": 49,
-      "ready": 4,
-      "runs": 8,
+      "not_realistic": 21,
+      "offered": 51,
+      "ready": 5,
+      "runs": 9,
       "unfit_language": 1,
       "unfit_model": 6,
-      "unfit_sales": 13,
+      "unfit_sales": 14,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -533,15 +533,15 @@
       "sent": 0
     },
     "2026-11-10": {
-      "filled": 22,
-      "found": 34,
+      "filled": 23,
+      "found": 35,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-10T15:49:08Z",
+  "generated_at": "2026-11-10T16:50:07Z",
   "question_shapes": {
     "employer_site: field: _": 2,
     "employer_site: field: _ _": 2,
@@ -568,7 +568,7 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 6,
     "workable: radio: are you willing to _ a background check _ _": 1,
     "workable: radio: have you been convicted of a felony": 1,
@@ -585,8 +585,7 @@
     "employer_site: no_apply: _ | _ _ | share _ _": 1,
     "employer_site: no_apply: _ | privacy": 1,
     "employer_site: no_apply: back | _ _ | _": 1,
-    "employer_site: no_apply: our _ | _ | _ _ _ _ _": 1,
-    "employer_site: no_apply: search _ _ | _ _ _ | _ account settings | _ _ _ _ | _ _ up _ _": 1
+    "employer_site: no_apply: our _ | _ | _ _ _ _ _": 1
   },
   "stuck_at": {
     "captcha": {
@@ -633,7 +632,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 2,
+        "nothing_to_press_on_captcha/filled": 1,
         "nothing_to_press_on_captcha/observed": 4
       },
       "error": {
@@ -643,7 +642,7 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 5
+        "nothing_to_press_on_content+no_apply/observed": 4
       },
       "questions": {
         "nothing_to_press_on_form/filled": 4,
@@ -656,8 +655,8 @@
     }
   },
   "totals": {
-    "filled": 117,
-    "found": 513,
+    "filled": 118,
+    "found": 514,
     "interviews": 14,
     "rejections": 11,
     "replies": 34,
@@ -706,7 +705,7 @@
     "needs_account": 0,
     "needs_answer": 26,
     "oldest_days": 58,
-    "to_send": 3
+    "to_send": 4
   },
   "window_days": 30
 }
