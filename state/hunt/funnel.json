@@ -344,16 +344,16 @@
     "2026-11-10": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 44,
+      "minutes": 74,
       "needs_account": 0,
       "needs_answer": 3,
-      "not_realistic": 14,
-      "offered": 39,
-      "ready": 1,
-      "runs": 5,
+      "not_realistic": 19,
+      "offered": 48,
+      "ready": 4,
+      "runs": 7,
       "unfit_language": 1,
-      "unfit_model": 3,
-      "unfit_sales": 10,
+      "unfit_model": 6,
+      "unfit_sales": 12,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -376,7 +376,7 @@
       "left_no_way_forward": 5,
       "left_questions": 13,
       "left_sign_in": 1,
-      "not_realistic": 11
+      "not_realistic": 12
     }
   },
   "days": {
@@ -533,15 +533,15 @@
       "sent": 0
     },
     "2026-11-10": {
-      "filled": 19,
-      "found": 30,
+      "filled": 22,
+      "found": 34,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-10T14:48:24Z",
+  "generated_at": "2026-11-10T15:19:08Z",
   "question_shapes": {
     "employer_site: field: _": 2,
     "employer_site: field: _ _": 2,
@@ -586,8 +586,7 @@
     "employer_site: no_apply: _ | privacy": 1,
     "employer_site: no_apply: back | _ _ | _": 1,
     "employer_site: no_apply: our _ | _ | _ _ _ _ _": 1,
-    "employer_site: no_apply: search _ _ | _ _ _ | _ account settings | _ _ _ _ | _ _ up _ _": 1,
-    "employer_site: no_apply: search _ _ | _ | _ _ _ | _ _": 1
+    "employer_site: no_apply: search _ _ | _ _ _ | _ account settings | _ _ _ _ | _ _ up _ _": 1
   },
   "stuck_at": {
     "captcha": {
@@ -647,7 +646,7 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 6
+        "nothing_to_press_on_content+no_apply/observed": 5
       },
       "questions": {
         "nothing_to_press_on_form/filled": 4,
@@ -660,8 +659,8 @@
     }
   },
   "totals": {
-    "filled": 114,
-    "found": 509,
+    "filled": 117,
+    "found": 513,
     "interviews": 14,
     "rejections": 11,
     "replies": 34,
@@ -694,7 +693,7 @@
       "left_sign_in": 10,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
-      "not_realistic": 82
+      "not_realistic": 83
     },
     "failed": 20,
     "failed_because": {
@@ -710,7 +709,7 @@
     "needs_account": 0,
     "needs_answer": 26,
     "oldest_days": 58,
-    "to_send": 0
+    "to_send": 3
   },
   "window_days": 30
 }
