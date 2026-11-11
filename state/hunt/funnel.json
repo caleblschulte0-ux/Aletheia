@@ -344,20 +344,20 @@
     "2026-11-11": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 68,
+      "minutes": 76,
       "needs_account": 0,
       "needs_answer": 1,
-      "not_realistic": 7,
-      "offered": 13,
+      "not_realistic": 9,
+      "offered": 17,
       "ready": 0,
-      "runs": 6,
+      "runs": 8,
       "unfit_model": 1,
-      "unfit_pay": 3,
+      "unfit_pay": 5,
       "unfit_sales": 3,
       "unjudged": 0,
-      "unreachable": 5,
+      "unreachable": 7,
       "unreachable_ApplyError": 2,
-      "unreachable_left_till_tomorrow": 3,
+      "unreachable_left_till_tomorrow": 5,
       "weak_shot": 0
     }
   },
@@ -543,7 +543,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-11T20:55:12Z",
+  "generated_at": "2026-11-11T21:26:31Z",
   "question_shapes": {
     "employer_site: field: _": 6,
     "employer_site: field: _ _": 4,
