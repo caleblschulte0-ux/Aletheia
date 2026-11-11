@@ -390,6 +390,94 @@ class RunCheck(unittest.TestCase):
         self.assertEqual(res["candidates"], [])
 
 
+def _viol(site, code, date, *, violation="HANDWASHING LAVATORIES AND SUPPLIES"):
+    return {"SITE_NO": site, "TXT_VCODE": code, "DATE": date, "CRITICAL": "Y",
+            "VIOLATION": violation}
+
+
+def _site(site, name, *, addr="1 Main St", kind="Restaurant", s1=85, s2=81):
+    return {"SITE_NO": site, "SITE_NAME": name, "FULL_ADDRESS": addr,
+            "SITE_TYPE_DESC": kind, "SCORE1": s1, "SCORE2": s2}
+
+
+class FoodHazardClusters(unittest.TestCase):
+    def _data(self, viols, sites):
+        return {"violations": viols,
+                "sites": {int(s["SITE_NO"]): s for s in sites}}
+
+    def test_flags_a_recurring_critical_hazard_still_open(self):
+        # the same critical code (37) cited 4x over two inspections, 5 total
+        viols = [_viol(4610, "37", 100), _viol(4610, "37", 100),
+                 _viol(4610, "37", 200), _viol(4610, "37", 200),
+                 _viol(4610, "12", 200, violation="COLD AND HOT STORAGE EQUIPMENT")]
+        out = inv.food_hazard_clusters(self._data(viols, [_site(4610, "PLAZA AZTECA")]))
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["subject"], "PLAZA AZTECA")
+        self.assertEqual(out[0]["kind"], "anomaly")
+        self.assertEqual(out[0]["evidence"]["critical_violations"], 5)
+        self.assertEqual(out[0]["evidence"]["inspections"], 2)
+        self.assertEqual(out[0]["evidence"]["worst_hazard"],
+                         "HANDWASHING LAVATORIES AND SUPPLIES")
+        self.assertIn("cited 4x", out[0]["summary"])
+        self.assertIn("PLAZA AZTECA", out[0]["subject"])
+
+    def test_skips_criticals_without_a_repeated_code(self):
+        # 5 criticals across 2 dates, but every code is different -- not a
+        # recurring hazard, just a bad week
+        viols = [_viol(1, c, d) for c, d in
+                 zip(("8", "12", "30", "37", "16"), (100, 100, 200, 200, 200))]
+        self.assertEqual(
+            inv.food_hazard_clusters(self._data(viols, [_site(1, "A")])), [])
+
+    def test_skips_a_repeat_on_a_single_inspection(self):
+        # same code 3x but all on ONE inspection date -- the inspector's single
+        # visit, not a pattern that recurred uncorrected
+        viols = [_viol(2, "37", 100), _viol(2, "37", 100), _viol(2, "37", 100),
+                 _viol(2, "8", 100), _viol(2, "12", 100)]
+        self.assertEqual(
+            inv.food_hazard_clusters(self._data(viols, [_site(2, "B")])), [])
+
+    def test_skips_below_the_critical_floor(self):
+        # the code repeats 3x across 2 dates but only 3 criticals total (< 5)
+        viols = [_viol(3, "37", 100), _viol(3, "37", 200), _viol(3, "37", 200)]
+        self.assertEqual(
+            inv.food_hazard_clusters(self._data(viols, [_site(3, "C")])), [])
+
+    def test_unnamed_site_falls_back_to_its_number(self):
+        viols = [_viol(99, "8", 100), _viol(99, "8", 100), _viol(99, "8", 200),
+                 _viol(99, "12", 200), _viol(99, "30", 200)]
+        out = inv.food_hazard_clusters(self._data(viols, []))
+        self.assertEqual(out[0]["subject"], "site #99")
+
+    def test_sorted_by_critical_count_descending(self):
+        many = [_viol(10, "37", 100), _viol(10, "37", 100), _viol(10, "37", 200),
+                _viol(10, "37", 200), _viol(10, "8", 200), _viol(10, "8", 200),
+                _viol(10, "12", 200)]  # 7 criticals
+        few = [_viol(20, "8", 100), _viol(20, "8", 100), _viol(20, "8", 200),
+               _viol(20, "12", 200), _viol(20, "30", 200)]  # 5 criticals
+        out = inv.food_hazard_clusters(
+            self._data(many + few, [_site(10, "BIG"), _site(20, "SMALL")]))
+        self.assertEqual([c["subject"] for c in out], ["BIG", "SMALL"])
+
+    def test_run_injects_fetch_and_survives_failure(self):
+        data = {"violations": [_viol(10, "37", 100), _viol(10, "37", 100),
+                               _viol(10, "37", 200), _viol(10, "37", 200),
+                               _viol(10, "8", 200)],
+                "sites": {10: _site(10, "FLAGGED")}}
+        ok = inv.run_sf_food_safety(fetch=lambda: data)
+        self.assertTrue(ok["ok"])
+        self.assertEqual(ok["check"], "sf_food_safety")
+        self.assertEqual(ok["rows_scanned"], 5)
+        self.assertEqual(len(ok["candidates"]), 1)
+
+        def boom():
+            raise RuntimeError("network reset")
+        bad = inv.run_sf_food_safety(fetch=boom)
+        self.assertFalse(bad["ok"])
+        self.assertEqual(bad["candidates"], [])
+        self.assertIn("network reset", bad["error"])
+
+
 class Scan(unittest.TestCase):
     def test_scan_assembles_and_does_not_write_when_told(self):
         stub = lambda: {"check": "stub", "ok": True, "rows_scanned": 2,

@@ -196,19 +196,32 @@ SOURCES: list[dict[str, Any]] = [
      "reads": "clean-air/water/waste violations, SNC flags and penalties by facility",
      "signal": "a private facility poisoning neighbors, under the regulator's radar",
      "free": True, "status": "AVAILABLE"},
+    # --- public health / food safety --------------------------------------
+    {"id": "sf_food_safety", "category": "safety",
+     "name": "Sioux Falls food inspection violations (city ArcGIS)",
+     "host": "gis.siouxfalls.gov",
+     "reads": "critical food-inspection line-items per establishment",
+     "signal": "an establishment cited for the SAME critical hazard repeatedly, still open -- a persistent, uncorrected foodborne-illness risk nobody has assembled",
+     "free": True, "status": "AVAILABLE", "caller": "run_sf_food_safety"},
     # --- housing / predatory landlord -------------------------------------
     {"id": "sf_code_enforcement", "category": "housing",
      "name": "Sioux Falls code enforcement / rental violations",
-     "host": "siouxfalls.gov portal",
+     "host": "gis.siouxfalls.gov ArcGIS",
      "reads": "repeat housing-code violations per owner/parcel",
      "signal": "a landlord concealing systemic habitability failures across many units",
-     "free": True, "status": "NOT_BUILT", "note": "ticket: find the city code-enforcement data endpoint"},
+     "free": True, "status": "QUEUED", "note": "ticket: the city ArcGIS (Data/Safety, Data/Community) is reachable from the cloud where the Socrata portal 502s; Environmental Enforcement Cases (Community/9) is currently empty, so find the live code-enforcement/nuisance layer"},
     {"id": "sf_parcels_landlord", "category": "housing",
      "name": "Sioux Falls parcels / ownership (ArcGIS)",
      "host": "gis.siouxfalls.gov",
      "reads": "owner name, unit counts, square footage by parcel",
      "signal": "one owner behind many units via shells (enrichment for a landlord vein)",
      "free": True, "status": "QUEUED", "note": "ticket: ArcGIS reachable; wire owner-cluster enrichment"},
+    {"id": "sf_mobile_home_parks", "category": "housing",
+     "name": "Sioux Falls manufactured-housing parks (ArcGIS)",
+     "host": "gis.siouxfalls.gov",
+     "reads": "park name, owner (PARKOWNER), manager, space count per park (Community/17)",
+     "signal": "one owner concentrating many parks, joined to a harm signal (the Havenpark/Country View shape) -- concentration alone is legal, so it needs the harm join",
+     "free": True, "status": "QUEUED", "note": "ticket: 25 parks reachable with owners; wire owner-concentration x harm (water/complaints/violations) join"},
     {"id": "minnehaha_deeds_liens", "category": "housing",
      "name": "Minnehaha County deeds / liens", "host": "county ROD portal",
      "reads": "transfers and liens vs claimed ownership",
@@ -1004,9 +1017,165 @@ def run_sky_watch(fetch: Callable[[], list[dict[str, Any]]] | None = None,
 
 # ---- orchestration ---------------------------------------------------------
 
+# ---- Sioux Falls food-safety recurring-hazard clusters --------------------
+# Local records the cloud is NOT walled off from: the city publishes its food
+# inspection line-items as ArcGIS feature layers (the Socrata portal 502s from
+# a datacenter, but ArcGIS answers -- the same host that serves parcels). A
+# single critical violation is the inspector's routine work; the COLD pattern
+# is an establishment cited for the SAME critical hazard again and again that
+# is still open -- a persistent, uncorrected foodborne-illness risk nobody has
+# assembled. This is the "violation, no formal action" cut (raw inspection
+# line-items, not an enforcement record that would mean the regulator acted).
+
+SF_GIS = "https://gis.siouxfalls.gov/arcgis/rest/services"
+SF_FOOD_VIOLATION_LAYERS = (
+    f"{SF_GIS}/Data/Safety/MapServer/20",   # Service Violations
+    f"{SF_GIS}/Data/Safety/MapServer/19",   # Processing Violations
+)
+SF_FOOD_SITES_LAYER = f"{SF_GIS}/Data/Safety/MapServer/17"  # Restaurant Sites
+
+FOOD_FLAG_CRITICAL = 5        # total critical violations in the published window
+FOOD_FLAG_REPEAT = 3          # ... with the SAME critical code cited this often
+
+
+def _arcgis_query(layer: str, where: str, out_fields: str,
+                  *, max_rows: int = 6000) -> list[dict[str, Any]]:
+    """Network. Page an ArcGIS feature layer's attributes. Deduped by OBJECTID
+    and stopped when a page adds nothing new, so a layer that silently ignores
+    resultOffset (not all advertise pagination) returns its first page once
+    rather than looping forever.
+    """
+    fields = out_fields if "OBJECTID" in out_fields else out_fields + ",OBJECTID"
+    rows: dict[Any, dict[str, Any]] = {}
+    offset = 0
+    while len(rows) < max_rows:
+        params = {
+            "where": where, "outFields": fields, "returnGeometry": "false",
+            "resultOffset": str(offset), "resultRecordCount": "1000", "f": "json",
+        }
+        url = f"{layer}/query?" + urllib.parse.urlencode(params)
+        page = _get_json(url).get("features") or []
+        before = len(rows)
+        for feat in page:
+            attrs = feat.get("attributes", {})
+            rows[attrs.get("OBJECTID")] = attrs
+        if len(page) < 1000 or len(rows) == before:
+            break
+        offset += 1000
+    return list(rows.values())
+
+
+def _fetch_sf_food_violations() -> dict[str, Any]:
+    """Network. Critical food-inspection violations + the site name map."""
+    viols: list[dict[str, Any]] = []
+    for layer in SF_FOOD_VIOLATION_LAYERS:
+        viols.extend(_arcgis_query(
+            layer, "CRITICAL='Y'",
+            "SITE_NO,CONTROL,DATE,TXT_VCODE,VIOLATION,INV_TYPE"))
+    site_ids = sorted({int(v["SITE_NO"]) for v in viols
+                       if v.get("SITE_NO") is not None})
+    sites: dict[int, dict[str, Any]] = {}
+    if site_ids:
+        where = "SITE_NO IN (%s)" % ",".join(str(s) for s in site_ids)
+        for attrs in _arcgis_query(
+                SF_FOOD_SITES_LAYER, where,
+                "SITE_NO,SITE_NAME,FULL_ADDRESS,SITE_TYPE_DESC,SCORE1,SCORE2"):
+            if attrs.get("SITE_NO") is not None:
+                sites.setdefault(int(attrs["SITE_NO"]), attrs)
+    return {"violations": viols, "sites": sites}
+
+
+def food_hazard_clusters(data: dict[str, Any], *,
+                         flag_critical: int = FOOD_FLAG_CRITICAL,
+                         flag_repeat: int = FOOD_FLAG_REPEAT
+                         ) -> list[dict[str, Any]]:
+    """Pure analysis. Cluster critical violations by site; flag a site cited
+    for the SAME critical code >= flag_repeat times AND >= flag_critical
+    criticals overall, across >= 2 inspection dates -- a recurring, uncorrected
+    hazard. Deterministic, no model. A flag is a QUESTION: at judgment the
+    engine checks whether the health dept closed/placarded it (that would mean
+    the regulator acted -> not cold).
+    """
+    from collections import Counter, defaultdict
+    by_site: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for v in data.get("violations", []):
+        if v.get("SITE_NO") is None:
+            continue
+        by_site[int(v["SITE_NO"])].append(v)
+    sites = data.get("sites", {})
+    out: list[dict[str, Any]] = []
+    for site_no, vs in by_site.items():
+        dates = {v.get("DATE") for v in vs if v.get("DATE")}
+        if len(dates) < 2:
+            continue
+        codes = Counter((v.get("TXT_VCODE") or "").strip() for v in vs
+                        if (v.get("TXT_VCODE") or "").strip())
+        top_code, top_n = (codes.most_common(1) or [("", 0)])[0]
+        if len(vs) < flag_critical or top_n < flag_repeat:
+            continue
+        site = sites.get(site_no) or sites.get(str(site_no)) or {}
+        name = (site.get("SITE_NAME") or f"site #{site_no}").strip()
+        addr = (site.get("FULL_ADDRESS") or "").strip()
+        # what the repeated hazard IS (the violation text for the top code)
+        hazard = next((((v.get("VIOLATION") or "").strip())
+                       for v in vs
+                       if (v.get("TXT_VCODE") or "").strip() == top_code
+                       and (v.get("VIOLATION") or "").strip()), top_code)
+        recurring = sorted(((c, n) for c, n in codes.items() if n >= 2),
+                           key=lambda cn: (-cn[1], cn[0]))
+        summary = (
+            f"{name}" + (f" ({addr})" if addr else "")
+            + f": {len(vs)} critical food-safety violations across "
+            + f"{len(dates)} inspections, including '{hazard}' cited {top_n}x "
+            + "-- a recurring, uncorrected hazard")
+        out.append({
+            "check": "sf_food_safety",
+            "kind": "anomaly",
+            "subject": name,
+            "summary": summary,
+            "evidence": {
+                "site_no": site_no,
+                "address": addr,
+                "site_type": (site.get("SITE_TYPE_DESC") or "").strip(),
+                "critical_violations": len(vs),
+                "inspections": len(dates),
+                "recent_scores": [s for s in (site.get("SCORE1"),
+                                              site.get("SCORE2"))
+                                  if s is not None],
+                "recurring_critical_codes": [
+                    {"code": c, "times": n} for c, n in recurring],
+                "worst_hazard": hazard,
+            },
+            "source": "Sioux Falls food inspection violations (city ArcGIS)",
+            "why_him": ("a licensed food establishment's public inspection "
+                        "record; the business is the target, records-based, "
+                        "never an individual"),
+            "next_record": ("whether the health dept closed or placarded it "
+                            "(if so, DISQUALIFIED -- the regulator acted); "
+                            "otherwise the full inspection history and any "
+                            "illness complaints tied to it"),
+        })
+    out.sort(key=lambda c: (-c["evidence"]["critical_violations"], c["subject"]))
+    return out
+
+
+def run_sf_food_safety(fetch: Callable[[], dict[str, Any]] | None = None
+                       ) -> dict[str, Any]:
+    """One check: fetch (injectable) then analyse."""
+    fetch = fetch or _fetch_sf_food_violations
+    try:
+        data = fetch()
+    except Exception as exc:  # noqa: BLE001
+        return {"check": "sf_food_safety", "ok": False, "error": str(exc),
+                "candidates": []}
+    rows = len(data.get("violations", []))
+    return {"check": "sf_food_safety", "ok": True, "rows_scanned": rows,
+            "candidates": food_hazard_clusters(data)}
+
+
 CHECKS: list[Callable[[], dict[str, Any]]] = [
     run_cms_partd, run_fda_recalls, run_epa_echo, run_care_compare,
-    run_sky_watch,
+    run_sky_watch, run_sf_food_safety,
 ]
 
 
