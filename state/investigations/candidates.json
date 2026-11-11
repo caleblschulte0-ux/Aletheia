@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-10T23:36:49Z",
+  "generated_at": "2026-11-11T06:51:17Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,11 +30,17 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 20,
-      "flagged": 1
+      "rows_scanned": 1,
+      "flagged": 0
+    },
+    {
+      "check": "sf_food_safety",
+      "ok": true,
+      "rows_scanned": 436,
+      "flagged": 5
     }
   ],
-  "candidate_count": 42,
+  "candidate_count": 46,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -899,27 +905,158 @@
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
     },
     {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N62SD",
-      "summary": "N62SD (B350), owner USDF2 LLC: non-scheduled aircraft 2750ft near FSD (5nm)",
+      "check": "sf_food_safety",
+      "kind": "anomaly",
+      "subject": "PLAZA AZTECA",
+      "summary": "PLAZA AZTECA (3500 W 69TH ST): 9 critical food-safety violations across 2 inspections, including 'HANDWASHING LAVATORIES AND SUPPLIES' cited 4x -- a recurring, uncorrected hazard",
       "evidence": {
-        "tail": "N62SD",
-        "type": "B350",
-        "callsign": "N62SD",
-        "owner_operator": "USDF2 LLC",
-        "squawk": "4505",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 2750.0,
-        "distance_from_fsd_nm": 5.0,
-        "times_seen": 1,
-        "first_seen": "2026-11-10"
+        "site_no": 4610,
+        "address": "3500 W 69TH ST",
+        "site_type": "Restaurant",
+        "critical_violations": 9,
+        "inspections": 2,
+        "recent_scores": [
+          81.0
+        ],
+        "recurring_critical_codes": [
+          {
+            "code": "37",
+            "times": 4
+          },
+          {
+            "code": "12",
+            "times": 3
+          },
+          {
+            "code": "44",
+            "times": 2
+          }
+        ],
+        "worst_hazard": "HANDWASHING LAVATORIES AND SUPPLIES"
       },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+      "source": "Sioux Falls food inspection violations (city ArcGIS)",
+      "why_him": "a licensed food establishment's public inspection record; the business is the target, records-based, never an individual",
+      "next_record": "whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it"
+    },
+    {
+      "check": "sf_food_safety",
+      "kind": "anomaly",
+      "subject": "CARNAVAL BRAZILIAN STEAKHOUSE",
+      "summary": "CARNAVAL BRAZILIAN STEAKHOUSE (2401 S CAROLYN AVE): 7 critical food-safety violations across 2 inspections, including 'HANDWASHING LAVATORIES AND SUPPLIES' cited 3x -- a recurring, uncorrected hazard",
+      "evidence": {
+        "site_no": 5216,
+        "address": "2401 S CAROLYN AVE",
+        "site_type": "Food Facility",
+        "critical_violations": 7,
+        "inspections": 2,
+        "recent_scores": [
+          88.0,
+          87.0
+        ],
+        "recurring_critical_codes": [
+          {
+            "code": "37",
+            "times": 3
+          },
+          {
+            "code": "15",
+            "times": 2
+          },
+          {
+            "code": "8",
+            "times": 2
+          }
+        ],
+        "worst_hazard": "HANDWASHING LAVATORIES AND SUPPLIES"
+      },
+      "source": "Sioux Falls food inspection violations (city ArcGIS)",
+      "why_him": "a licensed food establishment's public inspection record; the business is the target, records-based, never an individual",
+      "next_record": "whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it"
+    },
+    {
+      "check": "sf_food_safety",
+      "kind": "anomaly",
+      "subject": "FUJI SUSHI & HIBACHI",
+      "summary": "FUJI SUSHI & HIBACHI (2801 W 41ST ST): 7 critical food-safety violations across 2 inspections, including 'CROSS CONTAMINATION' cited 3x -- a recurring, uncorrected hazard",
+      "evidence": {
+        "site_no": 4082,
+        "address": "2801 W 41ST ST",
+        "site_type": "Restaurant",
+        "critical_violations": 7,
+        "inspections": 2,
+        "recent_scores": [
+          80.0,
+          82.0
+        ],
+        "recurring_critical_codes": [
+          {
+            "code": "8",
+            "times": 3
+          },
+          {
+            "code": "15",
+            "times": 2
+          }
+        ],
+        "worst_hazard": "CROSS CONTAMINATION"
+      },
+      "source": "Sioux Falls food inspection violations (city ArcGIS)",
+      "why_him": "a licensed food establishment's public inspection record; the business is the target, records-based, never an individual",
+      "next_record": "whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it"
+    },
+    {
+      "check": "sf_food_safety",
+      "kind": "anomaly",
+      "subject": "HOOK AND LADDER",
+      "summary": "HOOK AND LADDER (323 S WHITEWOOD CIR): 6 critical food-safety violations across 2 inspections, including 'HANDWASHING LAVATORIES AND SUPPLIES' cited 3x -- a recurring, uncorrected hazard",
+      "evidence": {
+        "site_no": 4994,
+        "address": "323 S WHITEWOOD CIR",
+        "site_type": "Restaurant",
+        "critical_violations": 6,
+        "inspections": 2,
+        "recent_scores": [
+          84.0,
+          90.0
+        ],
+        "recurring_critical_codes": [
+          {
+            "code": "37",
+            "times": 3
+          }
+        ],
+        "worst_hazard": "HANDWASHING LAVATORIES AND SUPPLIES"
+      },
+      "source": "Sioux Falls food inspection violations (city ArcGIS)",
+      "why_him": "a licensed food establishment's public inspection record; the business is the target, records-based, never an individual",
+      "next_record": "whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it"
+    },
+    {
+      "check": "sf_food_safety",
+      "kind": "anomaly",
+      "subject": "RUBY TUESDAY",
+      "summary": "RUBY TUESDAY (2425 S SHIRLEY AVE 110): 5 critical food-safety violations across 2 inspections, including 'CROSS CONTAMINATION' cited 3x -- a recurring, uncorrected hazard",
+      "evidence": {
+        "site_no": 1428,
+        "address": "2425 S SHIRLEY AVE 110",
+        "site_type": "Restaurant",
+        "critical_violations": 5,
+        "inspections": 2,
+        "recent_scores": [
+          89.0,
+          83.0
+        ],
+        "recurring_critical_codes": [
+          {
+            "code": "8",
+            "times": 3
+          }
+        ],
+        "worst_hazard": "CROSS CONTAMINATION"
+      },
+      "source": "Sioux Falls food inspection violations (city ArcGIS)",
+      "why_him": "a licensed food establishment's public inspection record; the business is the target, records-based, never an individual",
+      "next_record": "whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it"
     }
   ]
 }
