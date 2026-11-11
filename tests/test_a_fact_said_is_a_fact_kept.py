@@ -2289,7 +2289,12 @@ class HolidaysInNovemberCase(unittest.TestCase):
         self.assertEqual(quick.match("is monday a holiday"), ("holiday_next", "monday"))
         self.assertEqual(quick.match("what holidays are in november"), ("holiday_next", "november"))
         self.assertIn("Veterans Day", quick._holiday_next("november"))
-        self.assertTrue(quick.answer("when is veterans day").endswith("from now."))
+        # She dates Veterans Day; assert the stable fact (it falls in November),
+        # not the countdown wording. ".endswith('from now.')" was a date-bomb:
+        # it only holds while the day is far off -- once it is tomorrow/today
+        # the phrasing becomes "Tomorrow, ..." / "That's today, ...", which is
+        # still a correct answer. The month name is in every phrasing.
+        self.assertIn("November", quick.answer("when is veterans day"))
 
 
 
@@ -10499,8 +10504,13 @@ class MessagesAndHisBankCard(unittest.TestCase):
             self.assertEqual(quick.answer("is Sarah running late"), "You told me Sarah said she is running late.")
             self.assertIsNone(quick.answer("is Bob running late"))
             self.assertEqual(quick.answer("what is my credit limit"), "You told me: your credit card limit is 5000.")
+            # "You told me <when>:" -- the "<when>" qualifier is dropped once the
+            # pinned note (ts 2026-10-08) is no longer recent, leaving "You told
+            # me:". The old regex required a space after "me", so it was a
+            # date-bomb that went red weeks later. Make the qualifier optional;
+            # the computed window (pinned ts + 7..10 days) is the real assertion.
             self.assertRegex(quick.answer("when is my new card coming"),
-                             r"^You told me .*: your new card is coming in 7 to 10 days - so between October 15 and October 18\.$")
+                             r"^You told me.*: your new card is coming in 7 to 10 days - so between October 15 and October 18\.$")
         self.assertEqual(quick.match("who do I need to reply to")[0], "tasks_verb")
 
 
