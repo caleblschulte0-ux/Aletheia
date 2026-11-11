@@ -76,6 +76,13 @@
     "owner_operator": "",
     "type": "SR22"
   },
+  "N3974L": {
+    "count": 1,
+    "first_seen": "2026-11-11",
+    "last_seen": "2026-11-11",
+    "owner_operator": "LAKE AREA TECHNICAL COLLEGE",
+    "type": "C172"
+  },
   "N40LB": {
     "count": 1,
     "first_seen": "2026-11-09",
@@ -159,6 +166,20 @@
     "last_seen": "2026-11-10",
     "owner_operator": "LAKE AREA TECHNICAL COLLEGE",
     "type": "C172"
+  },
+  "N8621E": {
+    "count": 1,
+    "first_seen": "2026-11-11",
+    "last_seen": "2026-11-11",
+    "owner_operator": "UPDRAFT LEASING LLC",
+    "type": "P28A"
+  },
+  "N878RC": {
+    "count": 1,
+    "first_seen": "2026-11-11",
+    "last_seen": "2026-11-11",
+    "owner_operator": "TVPX AIRCRAFT SOLUTIONS INC TRUSTEE",
+    "type": "C525"
   },
   "N889SD": {
     "count": 1,
