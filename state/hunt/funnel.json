@@ -344,30 +344,31 @@
     "2026-11-11": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 82,
+      "minutes": 107,
       "needs_account": 0,
-      "needs_answer": 1,
+      "needs_answer": 4,
       "not_realistic": 12,
-      "offered": 23,
-      "ready": 0,
-      "runs": 10,
+      "offered": 28,
+      "ready": 1,
+      "runs": 11,
       "unfit_model": 2,
       "unfit_pay": 7,
       "unfit_sales": 3,
       "unjudged": 0,
-      "unreachable": 10,
+      "unreachable": 11,
       "unreachable_ApplyError": 3,
+      "unreachable_TimeoutError": 1,
       "unreachable_left_till_tomorrow": 7,
       "weak_shot": 0
     }
   },
   "boards": {
-    "ashby": 143,
+    "ashby": 144,
     "bamboohr": 5,
     "greenhouse": 103,
-    "lever": 81,
+    "lever": 82,
     "recruitee": 7,
-    "smartrecruiters": 38,
+    "smartrecruiters": 39,
     "workable": 10
   },
   "closed_recently": {
@@ -376,7 +377,7 @@
       "left_captcha": 5,
       "left_error": 3,
       "left_going_in_circles": 1,
-      "left_no_way_forward": 13,
+      "left_no_way_forward": 16,
       "left_sign_in": 2,
       "not_realistic": 16
     }
@@ -535,15 +536,15 @@
       "sent": 6
     },
     "2026-11-11": {
-      "filled": 17,
-      "found": 21,
+      "filled": 18,
+      "found": 25,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 0
+      "sent": 1
     }
   },
-  "generated_at": "2026-11-11T23:59:28Z",
+  "generated_at": "2026-11-12T00:30:08Z",
   "question_shapes": {
     "employer_site: field: _": 6,
     "employer_site: field: _ _": 4,
@@ -576,9 +577,9 @@
     "workable: radio: have you been convicted of a felony": 1,
     "workable: textarea: _ _ _ you to this position": 1
   },
-  "sent_all_time": 351,
+  "sent_all_time": 352,
   "sent_by_system": {
-    "ashbyhq": 22,
+    "ashbyhq": 23,
     "employer_site": 11,
     "lever": 19
   },
@@ -588,8 +589,9 @@
     "employer_site: no_apply: _ _ _ _ _ | _ _ | _ | _ settings menu | open _": 1,
     "employer_site: no_apply: _ _ | next _": 1,
     "employer_site: no_apply: _ | _ _ | share _ _": 1,
-    "employer_site: no_apply: _ | privacy": 2,
+    "employer_site: no_apply: _ | privacy": 3,
     "employer_site: no_apply: back | _ _ | _": 1,
+    "employer_site: no_apply: learn more _ _ | accept all | reject _ _ | _ | _ _ | next _": 2,
     "employer_site: no_apply: learn | _ | _ _ | _ _ _ _": 2,
     "employer_site: no_apply: more _ | _ _ _": 1,
     "employer_site: no_apply: our _ | _ | _ _ _ _ _": 1
@@ -615,7 +617,7 @@
       "nothing_to_press_on_content+empty_page/filled": 1,
       "nothing_to_press_on_content+empty_page/observed": 4,
       "nothing_to_press_on_content+no_apply/filled": 4,
-      "nothing_to_press_on_content+no_apply/observed": 34,
+      "nothing_to_press_on_content+no_apply/observed": 37,
       "nothing_to_press_on_form+apply_not_taken/filled": 1,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 4,
@@ -656,7 +658,7 @@
         "nothing_to_press_on_content+empty_page/filled": 1,
         "nothing_to_press_on_content+empty_page/observed": 2,
         "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 9,
+        "nothing_to_press_on_content+no_apply/observed": 12,
         "nothing_to_press_on_form+apply_not_taken/filled": 1
       },
       "questions": {
@@ -671,12 +673,12 @@
     }
   },
   "totals": {
-    "filled": 126,
-    "found": 535,
+    "filled": 127,
+    "found": 539,
     "interviews": 13,
     "rejections": 9,
     "replies": 31,
-    "sent": 52
+    "sent": 53
   },
   "waiting": {
     "asked_about": {
@@ -700,7 +702,7 @@
       "left_captcha": 36,
       "left_error": 12,
       "left_going_in_circles": 5,
-      "left_no_way_forward": 61,
+      "left_no_way_forward": 64,
       "left_posting_closed": 2,
       "left_questions": 44,
       "left_sign_in": 11,
