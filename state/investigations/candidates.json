@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T11:34:27Z",
+  "generated_at": "2026-11-12T20:13:09Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,8 +30,8 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 5,
-      "flagged": 0
+      "rows_scanned": 15,
+      "flagged": 2
     },
     {
       "check": "sf_food_safety",
@@ -40,7 +40,7 @@
       "flagged": 5
     }
   ],
-  "candidate_count": 46,
+  "candidate_count": 48,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -903,6 +903,52 @@
       "source": "EPA ECHO (enforcement & compliance)",
       "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "anomaly",
+      "subject": "21-46090",
+      "summary": "21-46090 (B762): military / government aircraft",
+      "evidence": {
+        "tail": "21-46090",
+        "type": "B762",
+        "callsign": "FORCE20",
+        "owner_operator": "",
+        "squawk": "7160",
+        "military": true,
+        "foreign_registration": true,
+        "on_ground": false,
+        "altitude_ft": 34000.0,
+        "distance_from_fsd_nm": 36.2,
+        "times_seen": 1,
+        "first_seen": "2026-11-12"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "anomaly",
+      "subject": "15005",
+      "summary": "15005 (A310): military / government aircraft",
+      "evidence": {
+        "tail": "15005",
+        "type": "A310",
+        "callsign": "CFC3305",
+        "owner_operator": "",
+        "squawk": "2630",
+        "military": true,
+        "foreign_registration": true,
+        "on_ground": false,
+        "altitude_ft": 31975.0,
+        "distance_from_fsd_nm": 76.3,
+        "times_seen": 1,
+        "first_seen": "2026-11-12"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     },
     {
       "check": "sf_food_safety",
