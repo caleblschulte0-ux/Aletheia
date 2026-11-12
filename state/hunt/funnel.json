@@ -545,7 +545,7 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-11-12T02:02:33Z",
+  "generated_at": "2026-11-12T03:05:18Z",
   "question_shapes": {
     "employer_site: field: _": 5,
     "employer_site: field: _ _": 2,
@@ -588,7 +588,6 @@
     "employer_site: apply_not_taken: _ _ | _": 1,
     "employer_site: empty_page: none": 3,
     "employer_site: no_apply: _ _ _ _ _ | _ _ | _ | _ settings menu | open _": 1,
-    "employer_site: no_apply: _ _ | next _": 1,
     "employer_site: no_apply: _ | _ _ | share _ _": 1,
     "employer_site: no_apply: _ | privacy": 3,
     "employer_site: no_apply: back | _ _ | _": 1,
@@ -619,7 +618,7 @@
       "nothing_to_press_on_content+empty_page/filled": 1,
       "nothing_to_press_on_content+empty_page/observed": 4,
       "nothing_to_press_on_content+no_apply/filled": 4,
-      "nothing_to_press_on_content+no_apply/observed": 37,
+      "nothing_to_press_on_content+no_apply/observed": 36,
       "nothing_to_press_on_form+apply_not_taken/filled": 1,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 4,
@@ -660,7 +659,7 @@
         "nothing_to_press_on_content+empty_page/filled": 1,
         "nothing_to_press_on_content+empty_page/observed": 2,
         "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 12,
+        "nothing_to_press_on_content+no_apply/observed": 11,
         "nothing_to_press_on_form+apply_not_taken/filled": 1,
         "unclear_button/observed": 1
       },
