@@ -346,16 +346,16 @@
     "2026-11-13": {
       "duplicate": 10,
       "employer_full": 0,
-      "minutes": 65,
+      "minutes": 81,
       "needs_account": 0,
-      "needs_answer": 8,
-      "not_realistic": 10,
-      "offered": 31,
+      "needs_answer": 9,
+      "not_realistic": 11,
+      "offered": 33,
       "ready": 3,
-      "runs": 6,
+      "runs": 7,
       "unfit_model": 1,
       "unfit_pay": 2,
-      "unfit_sales": 7,
+      "unfit_sales": 8,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -378,7 +378,7 @@
       "gone_on_workable": 1,
       "left_captcha": 6,
       "left_error": 3,
-      "left_no_way_forward": 13,
+      "left_no_way_forward": 14,
       "left_posting_closed": 1,
       "left_questions": 13,
       "left_sign_in": 2,
@@ -540,14 +540,14 @@
     },
     "2026-11-13": {
       "filled": 24,
-      "found": 30,
+      "found": 31,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
     }
   },
-  "generated_at": "2026-11-13T14:31:31Z",
+  "generated_at": "2026-11-13T15:02:28Z",
   "question_shapes": {
     "employer_site: field: _": 12,
     "employer_site: field: _ _": 5,
@@ -600,7 +600,8 @@
     "employer_site: no_apply: learn more _ _ | accept all | reject _ _ | _ | _ _ | next _": 2,
     "employer_site: no_apply: learn | _ | _ _ | _ _ _ _": 2,
     "employer_site: no_apply: more _ | _ _ _": 1,
-    "employer_site: no_apply: search | _ | _ _": 1
+    "employer_site: no_apply: search | _ | _ _": 1,
+    "employer_site: no_apply: search | _ | _ _ _ _ _ | _ to _": 1
   },
   "stuck_at": {
     "captcha": {
@@ -626,7 +627,7 @@
       "nothing_to_press_on_form+apply_not_taken/filled": 1,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 3,
-      "nothing_to_press_on_form+no_apply/observed": 5,
+      "nothing_to_press_on_form+no_apply/observed": 6,
       "nothing_to_press_on_success+no_apply/observed": 2,
       "unclear_button/observed": 7
     },
@@ -661,7 +662,7 @@
         "nothing_to_press_on_content+empty_page/observed": 4,
         "nothing_to_press_on_content+no_apply/observed": 11,
         "nothing_to_press_on_form+apply_not_taken/filled": 1,
-        "nothing_to_press_on_form+no_apply/observed": 1,
+        "nothing_to_press_on_form+no_apply/observed": 2,
         "unclear_button/observed": 3
       },
       "posting_closed": {
@@ -680,7 +681,7 @@
   },
   "totals": {
     "filled": 121,
-    "found": 560,
+    "found": 561,
     "interviews": 10,
     "rejections": 7,
     "replies": 23,
@@ -706,7 +707,7 @@
       "left_captcha": 41,
       "left_error": 15,
       "left_going_in_circles": 3,
-      "left_no_way_forward": 68,
+      "left_no_way_forward": 69,
       "left_posting_closed": 3,
       "left_questions": 54,
       "left_sign_in": 11,
