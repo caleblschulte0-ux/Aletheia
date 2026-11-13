@@ -375,7 +375,7 @@
   "closed_recently": {
     "days": 3,
     "why": {
-      "gone_on_ashbyhq": 1,
+      "gone_on_ashbyhq": 2,
       "gone_on_recruitee": 2,
       "gone_on_workable": 1,
       "left_captcha": 6,
@@ -542,14 +542,14 @@
     },
     "2026-11-13": {
       "filled": 28,
-      "found": 37,
+      "found": 38,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 3
     }
   },
-  "generated_at": "2026-11-13T21:10:29Z",
+  "generated_at": "2026-11-13T21:41:06Z",
   "question_shapes": {
     "ashbyhq: text: _ address": 1,
     "employer_site: field: _": 12,
@@ -679,7 +679,7 @@
   },
   "totals": {
     "filled": 125,
-    "found": 567,
+    "found": 568,
     "interviews": 10,
     "rejections": 7,
     "replies": 23,
@@ -698,7 +698,7 @@
       "years_experience": 1
     },
     "closed": {
-      "gone_on_ashbyhq": 5,
+      "gone_on_ashbyhq": 6,
       "gone_on_lever": 2,
       "gone_on_recruitee": 2,
       "gone_on_workable": 116,
