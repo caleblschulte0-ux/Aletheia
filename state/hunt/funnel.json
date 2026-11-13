@@ -508,15 +508,23 @@
       "sent": 6
     },
     "2026-11-11": {
-      "filled": 20,
-      "found": 28,
+      "filled": 19,
+      "found": 27,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
+    },
+    "2026-11-12": {
+      "filled": 1,
+      "found": 1,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
     }
   },
-  "generated_at": "2026-11-12T06:09:51Z",
+  "generated_at": "2026-11-13T01:16:18Z",
   "question_shapes": {
     "employer_site: field: _": 5,
     "employer_site: field: _ _": 2,
@@ -559,19 +567,16 @@
     "employer_site: apply_not_taken: _ _ | _": 1,
     "employer_site: empty_page: none": 3,
     "employer_site: no_apply: _ _ _ _ _ | _ _ | _ | _ settings menu | open _": 1,
-    "employer_site: no_apply: _ | _ _ | share _ _": 1,
-    "employer_site: no_apply: _ | privacy": 3,
-    "employer_site: no_apply: back | _ _ | _": 1,
+    "employer_site: no_apply: _ | privacy": 2,
     "employer_site: no_apply: learn more _ _ | accept all | reject _ _ | _ | _ _ | next _": 2,
     "employer_site: no_apply: learn | _ | _ _ | _ _ _ _": 2,
     "employer_site: no_apply: more _ | _ _ _": 1,
-    "employer_site: no_apply: our _ | _ | _ _ _ _ _": 1,
     "employer_site: no_apply: search | _ | _ _": 1
   },
   "stuck_at": {
     "captcha": {
       "nothing_to_press_on_captcha/filled": 31,
-      "nothing_to_press_on_captcha/observed": 5
+      "nothing_to_press_on_captcha/observed": 4
     },
     "error": {
       "nothing_to_press_on_error/observed": 1,
@@ -581,15 +586,14 @@
     },
     "going_in_circles": {
       "nothing_to_press_on_content/observed": 1,
-      "nothing_to_press_on_form/observed": 3,
-      "nothing_to_press_on_multi_page_wizard/observed": 1
+      "nothing_to_press_on_form/observed": 3
     },
     "no_way_forward": {
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
       "nothing_to_press_on_content+empty_page/filled": 1,
       "nothing_to_press_on_content+empty_page/observed": 4,
       "nothing_to_press_on_content+no_apply/filled": 4,
-      "nothing_to_press_on_content+no_apply/observed": 36,
+      "nothing_to_press_on_content+no_apply/observed": 35,
       "nothing_to_press_on_form+apply_not_taken/filled": 1,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 4,
@@ -602,7 +606,7 @@
     },
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
-      "nothing_to_press_on_form/filled": 28,
+      "nothing_to_press_on_form/filled": 26,
       "nothing_to_press_on_form/observed": 7,
       "nothing_to_press_on_multi_page_wizard/filled": 15
     },
@@ -614,14 +618,9 @@
   "stuck_recently": {
     "days": 3,
     "where": {
-      "captcha": {
-        "nothing_to_press_on_captcha/filled": 1,
-        "nothing_to_press_on_captcha/observed": 4
-      },
       "error": {
         "nothing_to_press_on_unread/filled": 1,
-        "nothing_to_press_on_unread/nothing": 1,
-        "nothing_to_press_on_unread/observed": 1
+        "nothing_to_press_on_unread/nothing": 1
       },
       "going_in_circles": {
         "nothing_to_press_on_form/observed": 1
@@ -629,8 +628,7 @@
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/filled": 1,
         "nothing_to_press_on_content+empty_page/observed": 2,
-        "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 11,
+        "nothing_to_press_on_content+no_apply/observed": 8,
         "nothing_to_press_on_form+apply_not_taken/filled": 1,
         "unclear_button/observed": 1
       },
@@ -640,8 +638,7 @@
         "nothing_to_press_on_multi_page_wizard/filled": 2
       },
       "sign_in": {
-        "nothing_to_press_on_account_login/observed": 1,
-        "nothing_to_press_on_account_login/submit_clicked": 1
+        "nothing_to_press_on_account_login/observed": 1
       }
     }
   },
