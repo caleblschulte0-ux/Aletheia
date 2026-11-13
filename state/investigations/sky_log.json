@@ -83,6 +83,13 @@
     "owner_operator": "BLINK AVIATION LLC",
     "type": "PC12"
   },
+  "N28NS": {
+    "count": 1,
+    "first_seen": "2026-11-13",
+    "last_seen": "2026-11-13",
+    "owner_operator": "MOCKINGBIRD FLYING CLUB",
+    "type": "P28A"
+  },
   "N316AB": {
     "count": 1,
     "first_seen": "2026-11-10",
@@ -117,6 +124,13 @@
     "last_seen": "2026-11-07",
     "owner_operator": "TVPX AIRCRAFT SOLUTIONS INC TRUSTEE, ROSCOE PROPERTIES HOLDINGS",
     "type": "C56X"
+  },
+  "N5407R": {
+    "count": 1,
+    "first_seen": "2026-11-13",
+    "last_seen": "2026-11-13",
+    "owner_operator": "LAKE AREA TECHNICAL COLLEGE",
+    "type": "C172"
   },
   "N5900J": {
     "count": 1,
@@ -194,6 +208,13 @@
     "last_seen": "2026-11-10",
     "owner_operator": "LAKE AREA TECHNICAL COLLEGE",
     "type": "C172"
+  },
+  "N8214Y": {
+    "count": 1,
+    "first_seen": "2026-11-13",
+    "last_seen": "2026-11-13",
+    "owner_operator": "REGISTRATION PENDING",
+    "type": "P28A"
   },
   "N824PM": {
     "count": 1,
