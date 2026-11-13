@@ -346,19 +346,19 @@
     "2026-11-13": {
       "duplicate": 10,
       "employer_full": 0,
-      "minutes": 131,
+      "minutes": 149,
       "needs_account": 0,
-      "needs_answer": 9,
-      "not_realistic": 29,
-      "offered": 55,
+      "needs_answer": 11,
+      "not_realistic": 30,
+      "offered": 59,
       "ready": 4,
-      "runs": 14,
-      "unfit_model": 3,
+      "runs": 15,
+      "unfit_model": 4,
       "unfit_pay": 4,
       "unfit_sales": 22,
       "unjudged": 0,
-      "unreachable": 3,
-      "unreachable_ApplyError": 1,
+      "unreachable": 4,
+      "unreachable_ApplyError": 2,
       "unreachable_left_till_tomorrow": 2,
       "weak_shot": 0
     }
@@ -541,16 +541,17 @@
       "sent": 6
     },
     "2026-11-13": {
-      "filled": 24,
-      "found": 33,
+      "filled": 26,
+      "found": 35,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 3
     }
   },
-  "generated_at": "2026-11-13T18:37:26Z",
+  "generated_at": "2026-11-13T19:07:50Z",
   "question_shapes": {
+    "ashbyhq: text: _ address": 1,
     "employer_site: field: _": 12,
     "employer_site: field: _ _": 5,
     "employer_site: field: _ _ _": 2,
@@ -560,7 +561,6 @@
     "employer_site: field: _ the _ would _ _ the _ _ have": 1,
     "employer_site: field: address _": 4,
     "employer_site: field: country united states the _ would _ _ the _ _ have": 4,
-    "employer_site: field: select": 1,
     "employer_site: field: select _ select _": 1,
     "employer_site: field: select city select city for _ _ the _ would _ _": 1,
     "employer_site: field: select state select state for city _ _ of _ _ _": 1,
@@ -682,8 +682,8 @@
     }
   },
   "totals": {
-    "filled": 121,
-    "found": 563,
+    "filled": 123,
+    "found": 565,
     "interviews": 10,
     "rejections": 7,
     "replies": 23,
@@ -691,11 +691,11 @@
   },
   "waiting": {
     "asked_about": {
-      "address": 5,
+      "address": 7,
       "background_check": 1,
       "demographic_gender": 1,
       "on_site": 2,
-      "other": 28,
+      "other": 29,
       "referral": 1,
       "travel": 1,
       "work_authorization": 1,
@@ -729,7 +729,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 30,
+    "needs_answer": 32,
     "oldest_days": 61,
     "to_send": 0
   },
