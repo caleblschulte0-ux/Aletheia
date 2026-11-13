@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-13T01:59:51Z",
+  "generated_at": "2026-11-13T11:30:59Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,8 +30,8 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 22,
-      "flagged": 3
+      "rows_scanned": 11,
+      "flagged": 0
     },
     {
       "check": "sf_food_safety",
@@ -40,7 +40,7 @@
       "flagged": 5
     }
   ],
-  "candidate_count": 49,
+  "candidate_count": 46,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -903,75 +903,6 @@
       "source": "EPA ECHO (enforcement & compliance)",
       "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N759LV",
-      "summary": "N759LV (C182), owner JAV AIR SERVICES LLC: non-scheduled aircraft 3300ft near FSD (12nm)",
-      "evidence": {
-        "tail": "N759LV",
-        "type": "C182",
-        "callsign": "N759LV",
-        "owner_operator": "JAV AIR SERVICES LLC",
-        "squawk": "0176",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 3300.0,
-        "distance_from_fsd_nm": 11.6,
-        "times_seen": 1,
-        "first_seen": "2026-11-13"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N759UL",
-      "summary": "N759UL (C182), owner JAV AIR SERVICES LLC: non-scheduled aircraft 3000ft near FSD (5nm)",
-      "evidence": {
-        "tail": "N759UL",
-        "type": "C182",
-        "callsign": "N759UL",
-        "owner_operator": "JAV AIR SERVICES LLC",
-        "squawk": "0167",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 3000.0,
-        "distance_from_fsd_nm": 5.3,
-        "times_seen": 1,
-        "first_seen": "2026-11-13"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N824PM",
-      "summary": "N824PM (C56X), owner JET AIR INC, SCARLAS SIDE LLC, SHEPJET LLC, JJR AIR LLC, HODGE A: non-scheduled aircraft on the ground at FSD (0nm)",
-      "evidence": {
-        "tail": "N824PM",
-        "type": "C56X",
-        "callsign": "",
-        "owner_operator": "JET AIR INC, SCARLAS SIDE LLC, SHEPJET LLC, JJR AIR LLC, HODGE A",
-        "squawk": "",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": true,
-        "altitude_ft": null,
-        "distance_from_fsd_nm": 0.2,
-        "times_seen": 1,
-        "first_seen": "2026-11-13"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     },
     {
       "check": "sf_food_safety",
