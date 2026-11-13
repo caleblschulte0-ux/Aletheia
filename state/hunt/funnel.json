@@ -346,18 +346,19 @@
     "2026-11-13": {
       "duplicate": 10,
       "employer_full": 0,
-      "minutes": 124,
+      "minutes": 131,
       "needs_account": 0,
       "needs_answer": 9,
-      "not_realistic": 28,
-      "offered": 52,
-      "ready": 3,
-      "runs": 12,
+      "not_realistic": 29,
+      "offered": 55,
+      "ready": 4,
+      "runs": 14,
       "unfit_model": 3,
       "unfit_pay": 4,
-      "unfit_sales": 21,
+      "unfit_sales": 22,
       "unjudged": 0,
-      "unreachable": 2,
+      "unreachable": 3,
+      "unreachable_ApplyError": 1,
       "unreachable_left_till_tomorrow": 2,
       "weak_shot": 0
     }
@@ -540,15 +541,15 @@
       "sent": 6
     },
     "2026-11-13": {
-      "filled": 23,
-      "found": 32,
+      "filled": 24,
+      "found": 33,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 2
+      "sent": 3
     }
   },
-  "generated_at": "2026-11-13T17:36:20Z",
+  "generated_at": "2026-11-13T18:06:31Z",
   "question_shapes": {
     "employer_site: field: _": 12,
     "employer_site: field: _ _": 5,
@@ -581,9 +582,9 @@
     "workable: radio: have you been convicted of a felony": 1,
     "workable: textarea: _ _ _ you to this position": 1
   },
-  "sent_all_time": 361,
+  "sent_all_time": 362,
   "sent_by_system": {
-    "ashbyhq": 24,
+    "ashbyhq": 25,
     "employer_site": 12,
     "lever": 15
   },
@@ -681,12 +682,12 @@
     }
   },
   "totals": {
-    "filled": 120,
-    "found": 562,
+    "filled": 121,
+    "found": 563,
     "interviews": 10,
     "rejections": 7,
     "replies": 23,
-    "sent": 51
+    "sent": 52
   },
   "waiting": {
     "asked_about": {
