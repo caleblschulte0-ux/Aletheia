@@ -374,7 +374,7 @@
     "days": 3,
     "why": {
       "gone_on_ashbyhq": 1,
-      "gone_on_recruitee": 1,
+      "gone_on_recruitee": 2,
       "gone_on_workable": 1,
       "left_captcha": 6,
       "left_error": 3,
@@ -539,7 +539,7 @@
       "sent": 6
     },
     "2026-11-13": {
-      "filled": 24,
+      "filled": 23,
       "found": 31,
       "interviews": 0,
       "rejections": 0,
@@ -547,7 +547,7 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-11-13T15:02:28Z",
+  "generated_at": "2026-11-13T15:33:36Z",
   "question_shapes": {
     "employer_site: field: _": 12,
     "employer_site: field: _ _": 5,
@@ -565,17 +565,17 @@
     "employer_site: field: select state select state for city _ _ of _ _ _": 1,
     "employer_site: field: state _ the _ would _ _ the _ _ have": 1,
     "employer_site: field: state select a state the _ would _ _ the _ _": 4,
+    "lever: checkbox: _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
-    "recruitee: radio: do you have experience _ in the _ _ _": 1,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: checkbox: which of the _ _ are you able to work in": 1,
-    "workable: field: _ _ _ _ _ _ _ _": 1,
-    "workable: field: resume _": 6,
+    "workable: field: _": 1,
+    "workable: field: _ _ _ _ _": 1,
+    "workable: field: resume _": 7,
     "workable: radio: are you willing to _ a background check _ _": 1,
     "workable: radio: have you been convicted of a felony": 1,
     "workable: textarea: _ _ _ you to this position": 1
@@ -680,7 +680,7 @@
     }
   },
   "totals": {
-    "filled": 121,
+    "filled": 120,
     "found": 561,
     "interviews": 10,
     "rejections": 7,
@@ -693,7 +693,7 @@
       "background_check": 1,
       "demographic_gender": 1,
       "on_site": 2,
-      "other": 29,
+      "other": 28,
       "referral": 1,
       "travel": 1,
       "work_authorization": 1,
@@ -702,7 +702,7 @@
     "closed": {
       "gone_on_ashbyhq": 5,
       "gone_on_lever": 2,
-      "gone_on_recruitee": 1,
+      "gone_on_recruitee": 2,
       "gone_on_workable": 116,
       "left_captcha": 41,
       "left_error": 15,
@@ -727,7 +727,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 31,
+    "needs_answer": 30,
     "oldest_days": 61,
     "to_send": 0
   },
