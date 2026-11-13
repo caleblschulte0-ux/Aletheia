@@ -343,7 +343,7 @@
     }
   },
   "boards": {
-    "ashby": 144,
+    "ashby": 145,
     "bamboohr": 5,
     "greenhouse": 103,
     "lever": 82,
@@ -354,12 +354,14 @@
   "closed_recently": {
     "days": 3,
     "why": {
-      "left_error": 1,
+      "gone_on_workable": 1,
+      "left_error": 2,
       "left_going_in_circles": 1,
-      "left_no_way_forward": 13,
+      "left_no_way_forward": 15,
+      "left_posting_closed": 1,
       "left_questions": 13,
       "left_sign_in": 1,
-      "not_realistic": 15
+      "not_realistic": 16
     }
   },
   "days": {
@@ -508,29 +510,32 @@
       "sent": 6
     },
     "2026-11-11": {
-      "filled": 6,
-      "found": 14,
+      "filled": 3,
+      "found": 11,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
     },
     "2026-11-12": {
-      "filled": 14,
-      "found": 14,
+      "filled": 23,
+      "found": 29,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 0
+      "sent": 3
     }
   },
-  "generated_at": "2026-11-13T01:47:26Z",
+  "generated_at": "2026-11-13T02:19:19Z",
   "question_shapes": {
-    "employer_site: field: _": 1,
-    "employer_site: field: address _": 1,
-    "employer_site: field: country united states the _ would _ _ the _ _ have": 1,
+    "employer_site: field: _": 2,
+    "employer_site: field: _ _ the _ would _ _ the _ _ have": 1,
+    "employer_site: field: _ area": 1,
+    "employer_site: field: _ the _ would _ _ the _ _ have": 1,
+    "employer_site: field: address _": 3,
+    "employer_site: field: country united states the _ would _ _ the _ _ have": 3,
     "employer_site: field: state _ the _ would _ _ the _ _ have": 1,
-    "employer_site: field: state select a state the _ would _ _ the _ _": 1,
+    "employer_site: field: state select a state the _ would _ _ the _ _": 3,
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
     "lever: field: _ _ _ _ _ _ _ _ _ _": 1,
@@ -552,16 +557,17 @@
     "workable: radio: have you been convicted of a felony": 1,
     "workable: textarea: _ _ _ you to this position": 1
   },
-  "sent_all_time": 353,
+  "sent_all_time": 356,
   "sent_by_system": {
-    "ashbyhq": 20,
-    "employer_site": 10,
+    "ashbyhq": 21,
+    "employer_site": 12,
     "lever": 16
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: _ _ | _": 1,
-    "employer_site: empty_page: none": 3,
+    "employer_site: empty_page: none": 4,
     "employer_site: no_apply: _ _ _ _ _ | _ _ | _ | _ settings menu | open _": 1,
+    "employer_site: no_apply: _ _ _ | _ with _ | _ in _ | _ privacy _ | _ _": 1,
     "employer_site: no_apply: _ | privacy": 2,
     "employer_site: no_apply: learn more _ _ | accept all | reject _ _ | _ | _ _ | next _": 2,
     "employer_site: no_apply: learn | _ | _ _ | _ _ _ _": 2,
@@ -577,7 +583,7 @@
       "nothing_to_press_on_error/observed": 1,
       "nothing_to_press_on_unread/filled": 2,
       "nothing_to_press_on_unread/nothing": 2,
-      "nothing_to_press_on_unread/observed": 7
+      "nothing_to_press_on_unread/observed": 8
     },
     "going_in_circles": {
       "nothing_to_press_on_content/observed": 1,
@@ -586,18 +592,18 @@
     "no_way_forward": {
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
       "nothing_to_press_on_content+empty_page/filled": 1,
-      "nothing_to_press_on_content+empty_page/observed": 4,
+      "nothing_to_press_on_content+empty_page/observed": 5,
       "nothing_to_press_on_content+no_apply/filled": 4,
       "nothing_to_press_on_content+no_apply/observed": 35,
       "nothing_to_press_on_form+apply_not_taken/filled": 1,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 4,
-      "nothing_to_press_on_form+no_apply/observed": 5,
+      "nothing_to_press_on_form+no_apply/observed": 6,
       "nothing_to_press_on_success+no_apply/observed": 2,
       "unclear_button/observed": 6
     },
     "posting_closed": {
-      "nothing_to_press_on_content/observed": 2
+      "nothing_to_press_on_content/observed": 3
     },
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
@@ -615,17 +621,22 @@
     "where": {
       "error": {
         "nothing_to_press_on_unread/filled": 1,
-        "nothing_to_press_on_unread/nothing": 1
+        "nothing_to_press_on_unread/nothing": 1,
+        "nothing_to_press_on_unread/observed": 1
       },
       "going_in_circles": {
         "nothing_to_press_on_form/observed": 1
       },
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/filled": 1,
-        "nothing_to_press_on_content+empty_page/observed": 2,
+        "nothing_to_press_on_content+empty_page/observed": 3,
         "nothing_to_press_on_content+no_apply/observed": 8,
         "nothing_to_press_on_form+apply_not_taken/filled": 1,
+        "nothing_to_press_on_form+no_apply/observed": 1,
         "unclear_button/observed": 1
+      },
+      "posting_closed": {
+        "nothing_to_press_on_content/observed": 1
       },
       "questions": {
         "nothing_to_press_on_form/filled": 6,
@@ -638,20 +649,20 @@
     }
   },
   "totals": {
-    "filled": 108,
-    "found": 524,
+    "filled": 114,
+    "found": 536,
     "interviews": 11,
     "rejections": 8,
     "replies": 26,
-    "sent": 46
+    "sent": 49
   },
   "waiting": {
     "asked_about": {
-      "address": 1,
+      "address": 3,
       "background_check": 1,
       "demographic_gender": 1,
       "on_site": 3,
-      "other": 18,
+      "other": 20,
       "referral": 1,
       "travel": 1,
       "work_authorization": 1,
@@ -660,17 +671,17 @@
     "closed": {
       "gone_on_ashbyhq": 4,
       "gone_on_lever": 2,
-      "gone_on_workable": 115,
+      "gone_on_workable": 116,
       "left_captcha": 35,
-      "left_error": 12,
+      "left_error": 13,
       "left_going_in_circles": 3,
-      "left_no_way_forward": 61,
-      "left_posting_closed": 2,
+      "left_no_way_forward": 63,
+      "left_posting_closed": 3,
       "left_questions": 55,
       "left_sign_in": 9,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
-      "not_realistic": 87
+      "not_realistic": 88
     },
     "failed": 21,
     "failed_because": {
@@ -684,7 +695,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 20,
+    "needs_answer": 22,
     "oldest_days": 61,
     "to_send": 0
   },
