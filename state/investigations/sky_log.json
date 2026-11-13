@@ -153,6 +153,20 @@
     "owner_operator": "TWIN CITY CLOUD 7 INC",
     "type": "C82S"
   },
+  "N759LV": {
+    "count": 1,
+    "first_seen": "2026-11-13",
+    "last_seen": "2026-11-13",
+    "owner_operator": "JAV AIR SERVICES LLC",
+    "type": "C182"
+  },
+  "N759UL": {
+    "count": 1,
+    "first_seen": "2026-11-13",
+    "last_seen": "2026-11-13",
+    "owner_operator": "JAV AIR SERVICES LLC",
+    "type": "C182"
+  },
   "N761BV": {
     "count": 1,
     "first_seen": "2026-11-08",
@@ -180,6 +194,13 @@
     "last_seen": "2026-11-10",
     "owner_operator": "LAKE AREA TECHNICAL COLLEGE",
     "type": "C172"
+  },
+  "N824PM": {
+    "count": 1,
+    "first_seen": "2026-11-13",
+    "last_seen": "2026-11-13",
+    "owner_operator": "JET AIR INC, SCARLAS SIDE LLC, SHEPJET LLC, JJR AIR LLC, HODGE A",
+    "type": "C56X"
   },
   "N8621E": {
     "count": 1,

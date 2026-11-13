@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T20:13:09Z",
+  "generated_at": "2026-11-13T01:59:51Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,8 +30,8 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 15,
-      "flagged": 2
+      "rows_scanned": 22,
+      "flagged": 3
     },
     {
       "check": "sf_food_safety",
@@ -40,7 +40,7 @@
       "flagged": 5
     }
   ],
-  "candidate_count": 48,
+  "candidate_count": 49,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -906,22 +906,22 @@
     },
     {
       "check": "sky_watch",
-      "kind": "anomaly",
-      "subject": "21-46090",
-      "summary": "21-46090 (B762): military / government aircraft",
+      "kind": "context",
+      "subject": "N759LV",
+      "summary": "N759LV (C182), owner JAV AIR SERVICES LLC: non-scheduled aircraft 3300ft near FSD (12nm)",
       "evidence": {
-        "tail": "21-46090",
-        "type": "B762",
-        "callsign": "FORCE20",
-        "owner_operator": "",
-        "squawk": "7160",
-        "military": true,
-        "foreign_registration": true,
+        "tail": "N759LV",
+        "type": "C182",
+        "callsign": "N759LV",
+        "owner_operator": "JAV AIR SERVICES LLC",
+        "squawk": "0176",
+        "military": false,
+        "foreign_registration": false,
         "on_ground": false,
-        "altitude_ft": 34000.0,
-        "distance_from_fsd_nm": 36.2,
+        "altitude_ft": 3300.0,
+        "distance_from_fsd_nm": 11.6,
         "times_seen": 1,
-        "first_seen": "2026-11-12"
+        "first_seen": "2026-11-13"
       },
       "source": "ADS-B (adsb.fi) + FAA registry",
       "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
@@ -929,22 +929,45 @@
     },
     {
       "check": "sky_watch",
-      "kind": "anomaly",
-      "subject": "15005",
-      "summary": "15005 (A310): military / government aircraft",
+      "kind": "context",
+      "subject": "N759UL",
+      "summary": "N759UL (C182), owner JAV AIR SERVICES LLC: non-scheduled aircraft 3000ft near FSD (5nm)",
       "evidence": {
-        "tail": "15005",
-        "type": "A310",
-        "callsign": "CFC3305",
-        "owner_operator": "",
-        "squawk": "2630",
-        "military": true,
-        "foreign_registration": true,
+        "tail": "N759UL",
+        "type": "C182",
+        "callsign": "N759UL",
+        "owner_operator": "JAV AIR SERVICES LLC",
+        "squawk": "0167",
+        "military": false,
+        "foreign_registration": false,
         "on_ground": false,
-        "altitude_ft": 31975.0,
-        "distance_from_fsd_nm": 76.3,
+        "altitude_ft": 3000.0,
+        "distance_from_fsd_nm": 5.3,
         "times_seen": 1,
-        "first_seen": "2026-11-12"
+        "first_seen": "2026-11-13"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N824PM",
+      "summary": "N824PM (C56X), owner JET AIR INC, SCARLAS SIDE LLC, SHEPJET LLC, JJR AIR LLC, HODGE A: non-scheduled aircraft on the ground at FSD (0nm)",
+      "evidence": {
+        "tail": "N824PM",
+        "type": "C56X",
+        "callsign": "",
+        "owner_operator": "JET AIR INC, SCARLAS SIDE LLC, SHEPJET LLC, JJR AIR LLC, HODGE A",
+        "squawk": "",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": true,
+        "altitude_ft": null,
+        "distance_from_fsd_nm": 0.2,
+        "times_seen": 1,
+        "first_seen": "2026-11-13"
       },
       "source": "ADS-B (adsb.fi) + FAA registry",
       "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
