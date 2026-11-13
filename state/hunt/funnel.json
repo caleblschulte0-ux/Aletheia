@@ -357,7 +357,7 @@
       "left_error": 1,
       "left_going_in_circles": 1,
       "left_no_way_forward": 13,
-      "left_questions": 7,
+      "left_questions": 13,
       "left_sign_in": 1,
       "not_realistic": 15
     }
@@ -500,7 +500,7 @@
       "sent": 0
     },
     "2026-11-10": {
-      "filled": 19,
+      "filled": 13,
       "found": 42,
       "interviews": 0,
       "rejections": 0,
@@ -508,44 +508,39 @@
       "sent": 6
     },
     "2026-11-11": {
-      "filled": 19,
-      "found": 27,
+      "filled": 6,
+      "found": 14,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
     },
     "2026-11-12": {
-      "filled": 1,
-      "found": 1,
+      "filled": 14,
+      "found": 14,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-13T01:16:18Z",
+  "generated_at": "2026-11-13T01:47:26Z",
   "question_shapes": {
-    "employer_site: field: _": 5,
-    "employer_site: field: _ _": 2,
-    "employer_site: field: _ or select _ _ _": 2,
-    "employer_site: field: _ the _ would _ _ the _ _ have": 1,
+    "employer_site: field: _": 1,
     "employer_site: field: address _": 1,
     "employer_site: field: country united states the _ would _ _ the _ _ have": 1,
-    "employer_site: field: how can _ _ you": 1,
-    "employer_site: field: please _ a link to your portfolio to _ your work": 1,
     "employer_site: field: state _ the _ would _ _ the _ _ have": 1,
     "employer_site: field: state select a state the _ would _ _ the _ _": 1,
-    "employer_site: field: what do you _ to _ your _ select all that apply": 1,
-    "employer_site: field: what is your _ _ of _ to _ and why": 1,
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
+    "lever: field: _ _ _ _ _ _ _ _ _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: what is your _ range": 1,
     "lever: select: _ _ to _ _": 1,
     "lever: text: _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
+    "recruitee: checkbox: what is your preferred work _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 3,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
@@ -606,9 +601,9 @@
     },
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
-      "nothing_to_press_on_form/filled": 26,
-      "nothing_to_press_on_form/observed": 7,
-      "nothing_to_press_on_multi_page_wizard/filled": 15
+      "nothing_to_press_on_form/filled": 28,
+      "nothing_to_press_on_form/observed": 8,
+      "nothing_to_press_on_multi_page_wizard/filled": 18
     },
     "sign_in": {
       "nothing_to_press_on_account_login/observed": 10,
@@ -633,9 +628,9 @@
         "unclear_button/observed": 1
       },
       "questions": {
-        "nothing_to_press_on_form/filled": 4,
-        "nothing_to_press_on_form/observed": 1,
-        "nothing_to_press_on_multi_page_wizard/filled": 2
+        "nothing_to_press_on_form/filled": 6,
+        "nothing_to_press_on_form/observed": 2,
+        "nothing_to_press_on_multi_page_wizard/filled": 5
       },
       "sign_in": {
         "nothing_to_press_on_account_login/observed": 1
@@ -643,7 +638,7 @@
     }
   },
   "totals": {
-    "filled": 114,
+    "filled": 108,
     "found": 524,
     "interviews": 11,
     "rejections": 8,
@@ -655,9 +650,8 @@
       "address": 1,
       "background_check": 1,
       "demographic_gender": 1,
-      "links": 1,
       "on_site": 3,
-      "other": 24,
+      "other": 18,
       "referral": 1,
       "travel": 1,
       "work_authorization": 1,
@@ -672,7 +666,7 @@
       "left_going_in_circles": 3,
       "left_no_way_forward": 61,
       "left_posting_closed": 2,
-      "left_questions": 49,
+      "left_questions": 55,
       "left_sign_in": 9,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
@@ -690,8 +684,8 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 26,
-    "oldest_days": 60,
+    "needs_answer": 20,
+    "oldest_days": 61,
     "to_send": 0
   },
   "window_days": 30
