@@ -346,16 +346,16 @@
     "2026-11-13": {
       "duplicate": 10,
       "employer_full": 0,
-      "minutes": 113,
+      "minutes": 124,
       "needs_account": 0,
       "needs_answer": 9,
-      "not_realistic": 23,
-      "offered": 47,
+      "not_realistic": 28,
+      "offered": 52,
       "ready": 3,
-      "runs": 9,
-      "unfit_model": 1,
-      "unfit_pay": 2,
-      "unfit_sales": 20,
+      "runs": 12,
+      "unfit_model": 3,
+      "unfit_pay": 4,
+      "unfit_sales": 21,
       "unjudged": 0,
       "unreachable": 2,
       "unreachable_left_till_tomorrow": 2,
@@ -383,7 +383,7 @@
       "left_posting_closed": 1,
       "left_questions": 13,
       "left_sign_in": 2,
-      "not_realistic": 5
+      "not_realistic": 6
     }
   },
   "days": {
@@ -541,14 +541,14 @@
     },
     "2026-11-13": {
       "filled": 23,
-      "found": 31,
+      "found": 32,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
     }
   },
-  "generated_at": "2026-11-13T16:35:02Z",
+  "generated_at": "2026-11-13T17:05:54Z",
   "question_shapes": {
     "employer_site: field: _": 12,
     "employer_site: field: _ _": 5,
@@ -606,7 +606,7 @@
   },
   "stuck_at": {
     "captcha": {
-      "nothing_to_press_on_captcha/filled": 37,
+      "nothing_to_press_on_captcha/filled": 38,
       "nothing_to_press_on_captcha/observed": 4
     },
     "error": {
@@ -650,7 +650,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 6
+        "nothing_to_press_on_captcha/filled": 7
       },
       "error": {
         "nothing_to_press_on_unread/observed": 3
@@ -682,7 +682,7 @@
   },
   "totals": {
     "filled": 120,
-    "found": 561,
+    "found": 562,
     "interviews": 10,
     "rejections": 7,
     "replies": 23,
@@ -714,7 +714,7 @@
       "left_sign_in": 11,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
-      "not_realistic": 89
+      "not_realistic": 90
     },
     "failed": 21,
     "failed_because": {
