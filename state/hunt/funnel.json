@@ -342,15 +342,15 @@
       "weak_shot": 0
     },
     "2026-11-12": {
-      "duplicate": 2,
+      "duplicate": 3,
       "employer_full": 0,
-      "minutes": 106,
+      "minutes": 109,
       "needs_account": 1,
-      "needs_answer": 21,
+      "needs_answer": 22,
       "not_realistic": 65,
-      "offered": 138,
+      "offered": 140,
       "ready": 9,
-      "runs": 11,
+      "runs": 12,
       "unfit_model": 10,
       "unfit_pay": 5,
       "unfit_sales": 50,
@@ -364,7 +364,7 @@
     }
   },
   "boards": {
-    "ashby": 146,
+    "ashby": 147,
     "bamboohr": 5,
     "greenhouse": 103,
     "lever": 82,
@@ -380,7 +380,7 @@
       "left_captcha": 6,
       "left_error": 4,
       "left_going_in_circles": 1,
-      "left_no_way_forward": 16,
+      "left_no_way_forward": 17,
       "left_posting_closed": 1,
       "left_questions": 13,
       "left_sign_in": 3,
@@ -542,14 +542,14 @@
     },
     "2026-11-12": {
       "filled": 33,
-      "found": 51,
+      "found": 52,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 6
     }
   },
-  "generated_at": "2026-11-13T04:20:56Z",
+  "generated_at": "2026-11-13T04:50:58Z",
   "question_shapes": {
     "employer_site: field: _": 11,
     "employer_site: field: _ _": 5,
@@ -565,6 +565,7 @@
     "employer_site: field: state select a state the _ would _ _ the _ _": 4,
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
+    "lever: field: _ _ _ _ _ _ _ _ _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: what is your _ range": 1,
@@ -576,7 +577,6 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 6,
     "workable: radio: are you willing to _ a background check _ _": 1,
     "workable: radio: have you been convicted of a felony": 1,
@@ -591,6 +591,7 @@
   "stop_shapes": {
     "employer_site: apply_not_taken: _ _ | _": 1,
     "employer_site: empty_page: none": 4,
+    "employer_site: no_apply: _ _ _": 1,
     "employer_site: no_apply: _ _ _ _ _ | _ _ | _ | _ settings menu | open _": 1,
     "employer_site: no_apply: _ _ _ | _ with _ | _ in _ | _ privacy _ | _ _": 1,
     "employer_site: no_apply: _ _ | _ _ linkedin | _ _ _ | _ _ _ _": 1,
@@ -620,7 +621,7 @@
       "nothing_to_press_on_content+empty_page/filled": 1,
       "nothing_to_press_on_content+empty_page/observed": 5,
       "nothing_to_press_on_content+no_apply/filled": 4,
-      "nothing_to_press_on_content+no_apply/observed": 34,
+      "nothing_to_press_on_content+no_apply/observed": 35,
       "nothing_to_press_on_form+apply_not_taken/filled": 1,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 3,
@@ -638,7 +639,7 @@
       "nothing_to_press_on_multi_page_wizard/filled": 18
     },
     "sign_in": {
-      "nothing_to_press_on_account_login/observed": 10,
+      "nothing_to_press_on_account_login/observed": 9,
       "nothing_to_press_on_account_login/submit_clicked": 2
     }
   },
@@ -658,7 +659,7 @@
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/filled": 1,
         "nothing_to_press_on_content+empty_page/observed": 3,
-        "nothing_to_press_on_content+no_apply/observed": 8,
+        "nothing_to_press_on_content+no_apply/observed": 9,
         "nothing_to_press_on_form+apply_not_taken/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 1,
         "unclear_button/observed": 2
@@ -679,7 +680,7 @@
   },
   "totals": {
     "filled": 123,
-    "found": 557,
+    "found": 558,
     "interviews": 11,
     "rejections": 8,
     "replies": 26,
@@ -704,7 +705,7 @@
       "left_captcha": 41,
       "left_error": 15,
       "left_going_in_circles": 3,
-      "left_no_way_forward": 64,
+      "left_no_way_forward": 65,
       "left_posting_closed": 3,
       "left_questions": 55,
       "left_sign_in": 11,
