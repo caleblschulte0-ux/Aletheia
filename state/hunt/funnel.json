@@ -1,24 +1,5 @@
 {
   "batches": {
-    "2026-10-14": {
-      "duplicate": 0,
-      "employer_full": 0,
-      "minutes": 149,
-      "needs_account": 0,
-      "needs_answer": 3,
-      "not_realistic": 58,
-      "offered": 69,
-      "ready": 4,
-      "runs": 13,
-      "unfit_language": 1,
-      "unfit_model": 4,
-      "unfit_sales": 52,
-      "unfit_years": 1,
-      "unjudged": 3,
-      "unreachable": 1,
-      "unreachable_ApplyError": 1,
-      "weak_shot": 0
-    },
     "2026-10-15": {
       "duplicate": 1,
       "employer_full": 0,
@@ -378,24 +359,15 @@
       "gone_on_ashbyhq": 1,
       "gone_on_workable": 1,
       "left_captcha": 6,
-      "left_error": 4,
-      "left_going_in_circles": 1,
-      "left_no_way_forward": 17,
+      "left_error": 3,
+      "left_no_way_forward": 9,
       "left_posting_closed": 1,
       "left_questions": 13,
-      "left_sign_in": 3,
-      "not_realistic": 16
+      "left_sign_in": 2,
+      "not_realistic": 4
     }
   },
   "days": {
-    "2026-10-14": {
-      "filled": 8,
-      "found": 10,
-      "interviews": 1,
-      "rejections": 1,
-      "replies": 3,
-      "sent": 3
-    },
     "2026-10-15": {
       "filled": 4,
       "found": 7,
@@ -549,7 +521,7 @@
       "sent": 6
     }
   },
-  "generated_at": "2026-11-13T05:52:56Z",
+  "generated_at": "2026-11-13T06:23:02Z",
   "question_shapes": {
     "employer_site: field: _": 11,
     "employer_site: field: _ _": 5,
@@ -584,9 +556,9 @@
   },
   "sent_all_time": 359,
   "sent_by_system": {
-    "ashbyhq": 23,
+    "ashbyhq": 22,
     "employer_site": 12,
-    "lever": 17
+    "lever": 15
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: _ _ | _": 1,
@@ -679,12 +651,12 @@
     }
   },
   "totals": {
-    "filled": 123,
-    "found": 558,
-    "interviews": 11,
-    "rejections": 8,
-    "replies": 26,
-    "sent": 52
+    "filled": 115,
+    "found": 548,
+    "interviews": 10,
+    "rejections": 7,
+    "replies": 23,
+    "sent": 49
   },
   "waiting": {
     "asked_about": {
@@ -705,9 +677,9 @@
       "left_captcha": 41,
       "left_error": 15,
       "left_going_in_circles": 3,
-      "left_no_way_forward": 65,
+      "left_no_way_forward": 64,
       "left_posting_closed": 3,
-      "left_questions": 55,
+      "left_questions": 54,
       "left_sign_in": 11,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
