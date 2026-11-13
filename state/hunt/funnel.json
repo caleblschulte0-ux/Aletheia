@@ -344,18 +344,18 @@
       "weak_shot": 0
     },
     "2026-11-13": {
-      "duplicate": 10,
+      "duplicate": 11,
       "employer_full": 0,
-      "minutes": 167,
+      "minutes": 178,
       "needs_account": 0,
-      "needs_answer": 12,
-      "not_realistic": 31,
-      "offered": 63,
+      "needs_answer": 13,
+      "not_realistic": 35,
+      "offered": 69,
       "ready": 4,
-      "runs": 16,
-      "unfit_model": 4,
-      "unfit_pay": 4,
-      "unfit_sales": 23,
+      "runs": 19,
+      "unfit_model": 5,
+      "unfit_pay": 5,
+      "unfit_sales": 25,
       "unjudged": 0,
       "unreachable": 6,
       "unreachable_ApplyError": 4,
@@ -541,15 +541,15 @@
       "sent": 6
     },
     "2026-11-13": {
-      "filled": 27,
-      "found": 36,
+      "filled": 28,
+      "found": 37,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 3
     }
   },
-  "generated_at": "2026-11-13T20:08:58Z",
+  "generated_at": "2026-11-13T20:39:38Z",
   "question_shapes": {
     "ashbyhq: text: _ address": 1,
     "employer_site: field: _": 12,
@@ -570,14 +570,14 @@
     "employer_site: field: state select a state the _ would _ _ the _ _": 4,
     "lever: field: date": 2,
     "lever: field: name": 2,
-    "lever: textarea: please _ your _ address": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
     "workable: field: _ _ _ _ _ _": 2,
-    "workable: field: resume _": 8,
+    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: resume _": 9,
     "workable: radio: are you willing to _ a background check _ _": 1,
     "workable: radio: have you been convicted of a felony": 1,
     "workable: textarea: _ _ _ you to this position": 1
@@ -589,10 +589,8 @@
     "lever": 15
   },
   "stop_shapes": {
-    "employer_site: apply_not_taken: _ _ | _": 1,
-    "employer_site: empty_page: none": 4,
+    "employer_site: empty_page: none": 3,
     "employer_site: no_apply: _ _ _": 1,
-    "employer_site: no_apply: _ _ _ _ _ | _ _ | _ | _ settings menu | open _": 1,
     "employer_site: no_apply: _ _ _ | _ with _ | _ in _ | _ privacy _ | _ _": 1,
     "employer_site: no_apply: _ _ | _ _ _ | _ | next | _ _ _ _ _": 1,
     "employer_site: no_apply: _ _ | _ _ linkedin | _ _ _ | _ _ _ _": 1,
@@ -660,9 +658,8 @@
         "nothing_to_press_on_form/observed": 1
       },
       "no_way_forward": {
-        "nothing_to_press_on_content+empty_page/observed": 4,
-        "nothing_to_press_on_content+no_apply/observed": 11,
-        "nothing_to_press_on_form+apply_not_taken/filled": 1,
+        "nothing_to_press_on_content+empty_page/observed": 3,
+        "nothing_to_press_on_content+no_apply/observed": 10,
         "nothing_to_press_on_form+no_apply/observed": 2,
         "unclear_button/observed": 3
       },
@@ -681,8 +678,8 @@
     }
   },
   "totals": {
-    "filled": 124,
-    "found": 566,
+    "filled": 125,
+    "found": 567,
     "interviews": 10,
     "rejections": 7,
     "replies": 23,
@@ -694,7 +691,7 @@
       "background_check": 1,
       "demographic_gender": 1,
       "on_site": 2,
-      "other": 30,
+      "other": 31,
       "referral": 1,
       "travel": 1,
       "work_authorization": 1,
@@ -728,7 +725,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 33,
+    "needs_answer": 34,
     "oldest_days": 61,
     "to_send": 0
   },
