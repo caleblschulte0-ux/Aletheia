@@ -546,7 +546,7 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-11-13T11:57:40Z",
+  "generated_at": "2026-11-13T13:29:51Z",
   "question_shapes": {
     "employer_site: field: _": 11,
     "employer_site: field: _ _": 5,
@@ -572,12 +572,12 @@
     "recruitee: radio: do you have experience _ in the _ _ _": 1,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _ _ _ _ _ _": 1,
-    "workable: field: resume _": 6,
+    "workable: field: _": 1,
+    "workable: field: _ _ _ _ _ _ _ _": 1,
+    "workable: field: resume _": 7,
     "workable: radio: are you willing to _ a background check _ _": 1,
     "workable: radio: have you been convicted of a felony": 1,
-    "workable: textarea: _ _ _ you to this position": 1,
-    "workable: textarea: have you ever worked with _ or _ _ _ of your": 1
+    "workable: textarea: _ _ _ you to this position": 1
   },
   "sent_all_time": 361,
   "sent_by_system": {
