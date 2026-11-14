@@ -34,6 +34,13 @@
     "owner_operator": "MEDARY AVIATION LLC",
     "type": "C172"
   },
+  "N1648A": {
+    "count": 1,
+    "first_seen": "2026-11-14",
+    "last_seen": "2026-11-14",
+    "owner_operator": "RENNER DANIEL T",
+    "type": "PA22"
+  },
   "N1674E": {
     "count": 1,
     "first_seen": "2026-11-09",
@@ -96,6 +103,13 @@
     "last_seen": "2026-11-10",
     "owner_operator": "",
     "type": "SR22"
+  },
+  "N371LL": {
+    "count": 1,
+    "first_seen": "2026-11-14",
+    "last_seen": "2026-11-14",
+    "owner_operator": "CRITICAL CARE SERVICES INC DBA, LIFE LINK III",
+    "type": "PC12"
   },
   "N3974L": {
     "count": 1,
