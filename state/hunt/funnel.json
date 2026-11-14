@@ -383,7 +383,7 @@
       "left_error": 3,
       "left_no_way_forward": 15,
       "left_posting_closed": 1,
-      "left_questions": 13,
+      "left_questions": 14,
       "left_sign_in": 2,
       "not_realistic": 6
     }
@@ -526,7 +526,7 @@
       "sent": 6
     },
     "2026-11-11": {
-      "filled": 3,
+      "filled": 2,
       "found": 11,
       "interviews": 0,
       "rejections": 0,
@@ -550,9 +550,9 @@
       "sent": 4
     }
   },
-  "generated_at": "2026-11-14T00:44:26Z",
+  "generated_at": "2026-11-14T01:14:28Z",
   "question_shapes": {
-    "employer_site: field: _": 12,
+    "employer_site: field: _": 11,
     "employer_site: field: _ _": 5,
     "employer_site: field: _ _ _": 2,
     "employer_site: field: _ _ none of _ _ is _ _": 1,
@@ -560,17 +560,17 @@
     "employer_site: field: _ area": 1,
     "employer_site: field: _ or select _ _ _": 2,
     "employer_site: field: _ the _ would _ _ the _ _ have": 1,
-    "employer_site: field: address _": 4,
-    "employer_site: field: country united states the _ would _ _ the _ _ have": 4,
+    "employer_site: field: address _": 3,
+    "employer_site: field: country united states the _ would _ _ the _ _ have": 3,
     "employer_site: field: select": 1,
     "employer_site: field: select _ select _": 1,
     "employer_site: field: select city select city for _ _ the _ would _ _": 1,
     "employer_site: field: select state select state for city _ _ of _ _ _": 1,
-    "employer_site: field: state _ the _ would _ _ the _ _ have": 1,
-    "employer_site: field: state select a state the _ would _ _ the _ _": 4,
+    "employer_site: field: state select a state the _ would _ _ the _ _": 3,
     "lever: checkbox: _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
+    "lever: radio: what is your _ range": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
@@ -639,7 +639,7 @@
       "nothing_to_press_on_account_signup/filled": 1,
       "nothing_to_press_on_form/filled": 27,
       "nothing_to_press_on_form/observed": 8,
-      "nothing_to_press_on_multi_page_wizard/filled": 18
+      "nothing_to_press_on_multi_page_wizard/filled": 19
     },
     "sign_in": {
       "nothing_to_press_on_account_login/observed": 9,
@@ -668,7 +668,7 @@
       "questions": {
         "nothing_to_press_on_form/filled": 6,
         "nothing_to_press_on_form/observed": 2,
-        "nothing_to_press_on_multi_page_wizard/filled": 5
+        "nothing_to_press_on_multi_page_wizard/filled": 6
       },
       "sign_in": {
         "nothing_to_press_on_account_login/observed": 1,
@@ -677,7 +677,7 @@
     }
   },
   "totals": {
-    "filled": 125,
+    "filled": 124,
     "found": 569,
     "interviews": 10,
     "rejections": 8,
@@ -686,11 +686,11 @@
   },
   "waiting": {
     "asked_about": {
-      "address": 5,
+      "address": 4,
       "background_check": 1,
       "demographic_gender": 1,
       "on_site": 2,
-      "other": 30,
+      "other": 29,
       "travel": 1,
       "years_experience": 1
     },
@@ -704,7 +704,7 @@
       "left_going_in_circles": 3,
       "left_no_way_forward": 70,
       "left_posting_closed": 3,
-      "left_questions": 54,
+      "left_questions": 55,
       "left_sign_in": 11,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
@@ -722,7 +722,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 31,
+    "needs_answer": 30,
     "oldest_days": 61,
     "to_send": 0
   },
