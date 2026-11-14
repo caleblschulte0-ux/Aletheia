@@ -534,7 +534,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-14T06:49:00Z",
+  "generated_at": "2026-11-14T07:20:08Z",
   "question_shapes": {
     "employer_site: field: _": 11,
     "employer_site: field: _ _": 5,
@@ -555,15 +555,15 @@
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: what is your _ range": 1,
-    "lever: select: _ _ to _ _": 1,
-    "lever: text: _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
-    "workable: field: _ _ _ _ _ _": 3,
+    "workable: field: _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 9,
     "workable: radio: have you been convicted of a felony": 1
   },
@@ -575,7 +575,7 @@
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: careers | _ _ _ | _ | _ _": 1,
-    "employer_site: empty_page: none": 3,
+    "employer_site: empty_page: none": 2,
     "employer_site: no_apply: _ _ _": 1,
     "employer_site: no_apply: _ _ _ | _ with _ | _ in _ | _ privacy _ | _ _": 1,
     "employer_site: no_apply: _ _ | _ _ _ | _ | next | _ _ _ _ _": 1,
@@ -640,7 +640,7 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
-        "nothing_to_press_on_content+empty_page/observed": 3,
+        "nothing_to_press_on_content+empty_page/observed": 2,
         "nothing_to_press_on_content+no_apply/observed": 6,
         "nothing_to_press_on_form+no_apply/observed": 2,
         "unclear_button/observed": 3
