@@ -1,22 +1,5 @@
 {
   "batches": {
-    "2026-10-15": {
-      "duplicate": 1,
-      "employer_full": 0,
-      "minutes": 178,
-      "needs_account": 1,
-      "needs_answer": 8,
-      "not_realistic": 19,
-      "offered": 62,
-      "ready": 6,
-      "runs": 15,
-      "unfit_model": 10,
-      "unfit_sales": 9,
-      "unjudged": 0,
-      "unreachable": 3,
-      "unreachable_ApplyError": 3,
-      "weak_shot": 0
-    },
     "2026-10-16": {
       "duplicate": 0,
       "employer_full": 0,
@@ -382,22 +365,14 @@
       "gone_on_workable": 1,
       "left_captcha": 6,
       "left_error": 3,
-      "left_no_way_forward": 15,
+      "left_no_way_forward": 10,
       "left_posting_closed": 1,
-      "left_questions": 14,
+      "left_questions": 7,
       "left_sign_in": 2,
-      "not_realistic": 6
+      "not_realistic": 3
     }
   },
   "days": {
-    "2026-10-15": {
-      "filled": 4,
-      "found": 7,
-      "interviews": 1,
-      "rejections": 2,
-      "replies": 4,
-      "sent": 1
-    },
     "2026-10-16": {
       "filled": 0,
       "found": 1,
@@ -543,15 +518,23 @@
       "sent": 6
     },
     "2026-11-13": {
-      "filled": 28,
-      "found": 39,
+      "filled": 19,
+      "found": 30,
       "interviews": 0,
       "rejections": 1,
       "replies": 1,
       "sent": 4
+    },
+    "2026-11-14": {
+      "filled": 9,
+      "found": 9,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
     }
   },
-  "generated_at": "2026-11-14T05:47:45Z",
+  "generated_at": "2026-11-14T06:18:27Z",
   "question_shapes": {
     "employer_site: field: _": 11,
     "employer_site: field: _ _": 5,
@@ -572,23 +555,23 @@
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: what is your _ range": 1,
+    "lever: select: _ _ to _ _": 1,
+    "lever: text: _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
-    "workable: field: _ _ _ _ _": 2,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 3,
     "workable: field: resume _": 9,
-    "workable: radio: have you been convicted of a felony": 1,
-    "workable: radio: the _ will _ _ _ _ for the role in _": 1
+    "workable: radio: have you been convicted of a felony": 1
   },
   "sent_all_time": 363,
   "sent_by_system": {
     "ashbyhq": 26,
     "employer_site": 12,
-    "lever": 15
+    "lever": 14
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: careers | _ _ _ | _ | _ _": 1,
@@ -677,12 +660,12 @@
     }
   },
   "totals": {
-    "filled": 124,
-    "found": 569,
-    "interviews": 10,
-    "rejections": 8,
-    "replies": 24,
-    "sent": 53
+    "filled": 120,
+    "found": 562,
+    "interviews": 9,
+    "rejections": 6,
+    "replies": 20,
+    "sent": 52
   },
   "waiting": {
     "asked_about": {
@@ -702,10 +685,10 @@
       "left_captcha": 41,
       "left_error": 15,
       "left_going_in_circles": 3,
-      "left_no_way_forward": 70,
+      "left_no_way_forward": 68,
       "left_posting_closed": 3,
-      "left_questions": 55,
-      "left_sign_in": 11,
+      "left_questions": 54,
+      "left_sign_in": 10,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
       "not_realistic": 90
