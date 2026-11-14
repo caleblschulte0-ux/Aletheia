@@ -550,7 +550,7 @@
       "sent": 4
     }
   },
-  "generated_at": "2026-11-14T02:14:53Z",
+  "generated_at": "2026-11-14T03:15:11Z",
   "question_shapes": {
     "employer_site: field: _": 11,
     "employer_site: field: _ _": 5,
@@ -571,7 +571,6 @@
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: what is your _ range": 1,
-    "lever: text: _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
@@ -580,6 +579,7 @@
     "workable: field: _": 1,
     "workable: field: _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 9,
     "workable: radio: have you been convicted of a felony": 1
   },
