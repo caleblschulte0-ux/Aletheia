@@ -118,6 +118,13 @@
     "owner_operator": "BANK OF UTAH TRUSTEE",
     "type": "SB20"
   },
+  "N529AB": {
+    "count": 1,
+    "first_seen": "2026-11-14",
+    "last_seen": "2026-11-14",
+    "owner_operator": "95WEST AERIAL MAPPING LLC",
+    "type": "C208"
+  },
   "N529LL": {
     "count": 1,
     "first_seen": "2026-11-07",
@@ -252,9 +259,9 @@
     "type": "C560"
   },
   "N919SH": {
-    "count": 2,
+    "count": 3,
     "first_seen": "2026-11-10",
-    "last_seen": "2026-11-12",
+    "last_seen": "2026-11-14",
     "owner_operator": "AIRBUS HELICOPTERS INC",
     "type": "EC45"
   }

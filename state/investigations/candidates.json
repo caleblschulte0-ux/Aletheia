@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-13T19:55:13Z",
+  "generated_at": "2026-11-14T01:31:47Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,8 +30,8 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 31,
-      "flagged": 3
+      "rows_scanned": 7,
+      "flagged": 2
     },
     {
       "check": "sf_food_safety",
@@ -40,7 +40,7 @@
       "flagged": 5
     }
   ],
-  "candidate_count": 49,
+  "candidate_count": 48,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -906,22 +906,22 @@
     },
     {
       "check": "sky_watch",
-      "kind": "context",
-      "subject": "N28NS",
-      "summary": "N28NS (P28A), owner MOCKINGBIRD FLYING CLUB: non-scheduled aircraft 3200ft near FSD (4nm)",
+      "kind": "anomaly",
+      "subject": "N919SH",
+      "summary": "N919SH (EC45), owner AIRBUS HELICOPTERS INC: non-scheduled aircraft 2300ft near FSD (6nm) -- seen 3 times (repeat; first 2026-11-10)",
       "evidence": {
-        "tail": "N28NS",
-        "type": "P28A",
-        "callsign": "N28NS",
-        "owner_operator": "MOCKINGBIRD FLYING CLUB",
-        "squawk": "0142",
+        "tail": "N919SH",
+        "type": "EC45",
+        "callsign": "N919SH",
+        "owner_operator": "AIRBUS HELICOPTERS INC",
+        "squawk": "0101",
         "military": false,
         "foreign_registration": false,
         "on_ground": false,
-        "altitude_ft": 3200.0,
-        "distance_from_fsd_nm": 3.7,
-        "times_seen": 1,
-        "first_seen": "2026-11-13"
+        "altitude_ft": 2300.0,
+        "distance_from_fsd_nm": 6.3,
+        "times_seen": 3,
+        "first_seen": "2026-11-10"
       },
       "source": "ADS-B (adsb.fi) + FAA registry",
       "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
@@ -930,44 +930,21 @@
     {
       "check": "sky_watch",
       "kind": "context",
-      "subject": "N8214Y",
-      "summary": "N8214Y (P28A), owner REGISTRATION PENDING: non-scheduled aircraft 2100ft near FSD (1nm)",
+      "subject": "N529AB",
+      "summary": "N529AB (C208), owner 95WEST AERIAL MAPPING LLC: non-scheduled aircraft 3175ft near FSD (6nm)",
       "evidence": {
-        "tail": "N8214Y",
-        "type": "P28A",
-        "callsign": "N8214Y",
-        "owner_operator": "REGISTRATION PENDING",
-        "squawk": "0141",
+        "tail": "N529AB",
+        "type": "C208",
+        "callsign": "N529AB",
+        "owner_operator": "95WEST AERIAL MAPPING LLC",
+        "squawk": "0145",
         "military": false,
         "foreign_registration": false,
         "on_ground": false,
-        "altitude_ft": 2100.0,
-        "distance_from_fsd_nm": 1.5,
+        "altitude_ft": 3175.0,
+        "distance_from_fsd_nm": 6.4,
         "times_seen": 1,
-        "first_seen": "2026-11-13"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N5407R",
-      "summary": "N5407R (C172), owner LAKE AREA TECHNICAL COLLEGE: non-scheduled aircraft 3375ft near FSD (5nm)",
-      "evidence": {
-        "tail": "N5407R",
-        "type": "C172",
-        "callsign": "N5407R",
-        "owner_operator": "LAKE AREA TECHNICAL COLLEGE",
-        "squawk": "0152",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 3375.0,
-        "distance_from_fsd_nm": 5.1,
-        "times_seen": 1,
-        "first_seen": "2026-11-13"
+        "first_seen": "2026-11-14"
       },
       "source": "ADS-B (adsb.fi) + FAA registry",
       "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
