@@ -264,5 +264,12 @@
     "last_seen": "2026-11-14",
     "owner_operator": "AIRBUS HELICOPTERS INC",
     "type": "EC45"
+  },
+  "N9583Y": {
+    "count": 1,
+    "first_seen": "2026-11-14",
+    "last_seen": "2026-11-14",
+    "owner_operator": "MILLER CODY J",
+    "type": "BE35"
   }
 }
