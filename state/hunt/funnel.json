@@ -518,23 +518,23 @@
       "sent": 6
     },
     "2026-11-13": {
-      "filled": 19,
-      "found": 30,
+      "filled": 10,
+      "found": 21,
       "interviews": 0,
       "rejections": 1,
       "replies": 1,
       "sent": 4
     },
     "2026-11-14": {
-      "filled": 9,
-      "found": 9,
+      "filled": 18,
+      "found": 18,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-14T06:18:27Z",
+  "generated_at": "2026-11-14T06:49:00Z",
   "question_shapes": {
     "employer_site: field: _": 11,
     "employer_site: field: _ _": 5,
