@@ -349,7 +349,7 @@
     }
   },
   "boards": {
-    "ashby": 147,
+    "ashby": 146,
     "bamboohr": 5,
     "greenhouse": 103,
     "lever": 82,
@@ -534,7 +534,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-14T07:50:07Z",
+  "generated_at": "2026-11-14T08:21:40Z",
   "question_shapes": {
     "employer_site: field: _": 11,
     "employer_site: field: _ _": 5,
@@ -562,8 +562,8 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
-    "workable: field: _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _": 2,
+    "workable: field: _ _ _ _ _": 2,
+    "workable: field: _ _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 9,
     "workable: radio: have you been convicted of a felony": 1
   },
