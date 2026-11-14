@@ -551,7 +551,7 @@
       "sent": 4
     }
   },
-  "generated_at": "2026-11-14T03:45:21Z",
+  "generated_at": "2026-11-14T04:16:05Z",
   "question_shapes": {
     "employer_site: field: _": 11,
     "employer_site: field: _ _": 5,
@@ -568,21 +568,21 @@
     "employer_site: field: select city select city for _ _ the _ would _ _": 1,
     "employer_site: field: select state select state for city _ _ of _ _ _": 1,
     "employer_site: field: state select a state the _ would _ _ the _ _": 3,
+    "lever: checkbox: _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
+    "lever: radio: what is your _ range": 1,
+    "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 5,
-    "workable: field: _ _ _ _ _": 2,
+    "workable: field: _": 1,
+    "workable: field: _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _ the _ _": 1,
-    "workable: field: _ _ _ company _ _ _ _ _": 1,
-    "workable: field: open to all": 1,
     "workable: field: resume _": 9,
-    "workable: field: us": 1
+    "workable: radio: have you been convicted of a felony": 1
   },
   "sent_all_time": 363,
   "sent_by_system": {
