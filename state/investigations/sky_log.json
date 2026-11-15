@@ -217,9 +217,9 @@
     "type": "SR20"
   },
   "N7920N": {
-    "count": 1,
+    "count": 2,
     "first_seen": "2026-11-08",
-    "last_seen": "2026-11-08",
+    "last_seen": "2026-11-15",
     "owner_operator": "N7920N LLC",
     "type": "P28A"
   },
@@ -271,6 +271,13 @@
     "last_seen": "2026-11-08",
     "owner_operator": "NWL CAPITAL HOLDINGS LLC",
     "type": "C560"
+  },
+  "N909NG": {
+    "count": 1,
+    "first_seen": "2026-11-15",
+    "last_seen": "2026-11-15",
+    "owner_operator": "DHF LLC",
+    "type": "PC12"
   },
   "N919SH": {
     "count": 3,
