@@ -1,21 +1,5 @@
 {
   "batches": {
-    "2026-10-16": {
-      "duplicate": 0,
-      "employer_full": 0,
-      "minutes": 20,
-      "needs_account": 0,
-      "needs_answer": 1,
-      "not_realistic": 2,
-      "offered": 3,
-      "ready": 0,
-      "runs": 2,
-      "unfit_model": 1,
-      "unfit_years": 1,
-      "unjudged": 0,
-      "unreachable": 0,
-      "weak_shot": 0
-    },
     "2026-10-17": {
       "duplicate": 3,
       "employer_full": 0,
@@ -360,6 +344,22 @@
       "unjudged": 1,
       "unreachable": 0,
       "weak_shot": 0
+    },
+    "2026-11-15": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 16,
+      "needs_account": 0,
+      "needs_answer": 0,
+      "not_realistic": 0,
+      "offered": 3,
+      "ready": 0,
+      "runs": 1,
+      "unjudged": 1,
+      "unreachable": 2,
+      "unreachable_ApplyError": 1,
+      "unreachable_TimeoutError": 1,
+      "weak_shot": 0
     }
   },
   "boards": {
@@ -374,27 +374,14 @@
   "closed_recently": {
     "days": 3,
     "why": {
-      "gone_on_ashbyhq": 2,
+      "gone_on_ashbyhq": 1,
       "gone_on_recruitee": 2,
-      "gone_on_workable": 1,
-      "left_captcha": 6,
-      "left_error": 3,
-      "left_no_way_forward": 10,
-      "left_posting_closed": 1,
-      "left_questions": 15,
-      "left_sign_in": 2,
-      "not_realistic": 3
+      "left_no_way_forward": 6,
+      "left_questions": 9,
+      "not_realistic": 2
     }
   },
   "days": {
-    "2026-10-16": {
-      "filled": 0,
-      "found": 1,
-      "interviews": 0,
-      "rejections": 0,
-      "replies": 0,
-      "sent": 0
-    },
     "2026-10-17": {
       "filled": 9,
       "found": 18,
@@ -540,15 +527,23 @@
       "sent": 4
     },
     "2026-11-14": {
-      "filled": 18,
-      "found": 18,
+      "filled": 17,
+      "found": 17,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
+    },
+    "2026-11-15": {
+      "filled": 1,
+      "found": 1,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-15T05:40:28Z",
+  "generated_at": "2026-11-15T06:11:49Z",
   "question_shapes": {
     "employer_site: field: _": 1,
     "employer_site: field: _ _ none of _ _ is _ _": 1,
@@ -569,13 +564,9 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 5,
-    "workable: field: _ _ _ _ _": 4,
-    "workable: field: _ _ _ _ _ _ _ the _ _": 1,
-    "workable: field: _ _ _ company _ _ _ _ _": 1,
-    "workable: field: open to all": 1,
+    "workable: field: _": 1,
+    "workable: field: _ _ _ _ _": 3,
     "workable: field: resume _": 9,
-    "workable: field: us": 1,
     "workable: radio: have you been convicted of a felony": 1
   },
   "sent_all_time": 363,
@@ -668,7 +659,7 @@
   },
   "totals": {
     "filled": 112,
-    "found": 562,
+    "found": 561,
     "interviews": 9,
     "rejections": 6,
     "replies": 20,
@@ -692,7 +683,7 @@
       "left_captcha": 41,
       "left_error": 15,
       "left_going_in_circles": 3,
-      "left_no_way_forward": 68,
+      "left_no_way_forward": 67,
       "left_posting_closed": 3,
       "left_questions": 62,
       "left_sign_in": 10,
