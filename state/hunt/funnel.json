@@ -346,6 +346,20 @@
       "unreachable_left_till_tomorrow": 3,
       "unreachable_no_form": 1,
       "weak_shot": 1
+    },
+    "2026-11-14": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 9,
+      "needs_account": 0,
+      "needs_answer": 0,
+      "not_realistic": 0,
+      "offered": 1,
+      "ready": 0,
+      "runs": 1,
+      "unjudged": 1,
+      "unreachable": 0,
+      "weak_shot": 0
     }
   },
   "boards": {
@@ -534,7 +548,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-15T04:39:09Z",
+  "generated_at": "2026-11-15T05:09:23Z",
   "question_shapes": {
     "employer_site: field: _": 1,
     "employer_site: field: _ _ none of _ _ is _ _": 1,
@@ -555,15 +569,10 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 5,
+    "workable: field: _": 1,
     "workable: field: _ _ _ _": 1,
-    "workable: field: _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _": 2,
-    "workable: field: _ _ _ _ _ _ _ the _ _": 1,
-    "workable: field: _ _ _ company _ _ _ _ _": 1,
-    "workable: field: open to all": 1,
     "workable: field: resume _": 9,
-    "workable: field: us": 1,
     "workable: radio: have you been convicted of a felony": 1
   },
   "sent_all_time": 363,
