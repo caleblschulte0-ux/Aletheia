@@ -536,7 +536,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-15T09:16:13Z",
+  "generated_at": "2026-11-15T09:46:57Z",
   "question_shapes": {
     "employer_site: field: _": 1,
     "employer_site: field: select _ select _": 1,
@@ -555,11 +555,16 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 1,
+    "workable: field: _": 5,
     "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _ the _ _": 1,
+    "workable: field: _ _ _ _ _ at _ _ _": 1,
+    "workable: field: _ _ _ company _ _ _ _ _": 1,
+    "workable: field: open to all": 1,
     "workable: field: resume _": 9,
+    "workable: field: us": 1,
     "workable: radio: have you been convicted of a felony": 1
   },
   "sent_all_time": 363,
