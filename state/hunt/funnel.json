@@ -536,7 +536,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-15T21:04:12Z",
+  "generated_at": "2026-11-15T22:05:29Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -553,9 +553,9 @@
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 5,
     "workable: field: _ _ _ _ _": 2,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _ _ the _ _": 1,
-    "workable: field: _ _ _ _ _ _ a _": 1,
     "workable: field: _ _ _ company _ _ _ _ _": 1,
     "workable: field: open to all": 1,
     "workable: field: resume _": 9,
