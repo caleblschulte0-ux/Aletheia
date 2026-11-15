@@ -527,23 +527,23 @@
       "sent": 4
     },
     "2026-11-14": {
-      "filled": 17,
-      "found": 17,
+      "filled": 2,
+      "found": 2,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     },
     "2026-11-15": {
-      "filled": 1,
-      "found": 1,
+      "filled": 16,
+      "found": 16,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-15T06:11:49Z",
+  "generated_at": "2026-11-15T06:42:30Z",
   "question_shapes": {
     "employer_site: field: _": 1,
     "employer_site: field: _ _ none of _ _ is _ _": 1,
@@ -564,9 +564,15 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 1,
-    "workable: field: _ _ _ _ _": 3,
+    "workable: field: _": 5,
+    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 2,
+    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _ the _ _": 1,
+    "workable: field: _ _ _ company _ _ _ _ _": 1,
+    "workable: field: open to all": 1,
     "workable: field: resume _": 9,
+    "workable: field: us": 1,
     "workable: radio: have you been convicted of a felony": 1
   },
   "sent_all_time": 363,
@@ -606,7 +612,7 @@
       "nothing_to_press_on_content+empty_page/filled": 1,
       "nothing_to_press_on_content+empty_page/observed": 6,
       "nothing_to_press_on_content+no_apply/filled": 4,
-      "nothing_to_press_on_content+no_apply/observed": 37,
+      "nothing_to_press_on_content+no_apply/observed": 36,
       "nothing_to_press_on_form+apply_not_taken/filled": 1,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 3,
