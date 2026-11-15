@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-15T16:29:30Z",
+  "generated_at": "2026-11-15T23:02:11Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,8 +30,8 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 16,
-      "flagged": 2
+      "rows_scanned": 15,
+      "flagged": 0
     },
     {
       "check": "sf_food_safety",
@@ -40,7 +40,7 @@
       "flagged": 5
     }
   ],
-  "candidate_count": 48,
+  "candidate_count": 46,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -903,52 +903,6 @@
       "source": "EPA ECHO (enforcement & compliance)",
       "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "anomaly",
-      "subject": "N7920N",
-      "summary": "N7920N (P28A), owner N7920N LLC: non-scheduled aircraft 1800ft near FSD (7nm) -- seen 2 times (repeat; first 2026-11-08)",
-      "evidence": {
-        "tail": "N7920N",
-        "type": "P28A",
-        "callsign": "N7920N",
-        "owner_operator": "N7920N LLC",
-        "squawk": "1200",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 1800.0,
-        "distance_from_fsd_nm": 6.7,
-        "times_seen": 2,
-        "first_seen": "2026-11-08"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N909NG",
-      "summary": "N909NG (PC12), owner DHF LLC: non-scheduled aircraft 2650ft near FSD (6nm)",
-      "evidence": {
-        "tail": "N909NG",
-        "type": "PC12",
-        "callsign": "N909NG",
-        "owner_operator": "DHF LLC",
-        "squawk": "0637",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 2650.0,
-        "distance_from_fsd_nm": 5.9,
-        "times_seen": 1,
-        "first_seen": "2026-11-15"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     },
     {
       "check": "sf_food_safety",
