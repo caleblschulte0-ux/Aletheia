@@ -348,17 +348,17 @@
     "2026-11-15": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 16,
+      "minutes": 33,
       "needs_account": 0,
       "needs_answer": 0,
       "not_realistic": 0,
-      "offered": 3,
+      "offered": 6,
       "ready": 0,
-      "runs": 1,
+      "runs": 2,
       "unjudged": 1,
-      "unreachable": 2,
-      "unreachable_ApplyError": 1,
-      "unreachable_TimeoutError": 1,
+      "unreachable": 5,
+      "unreachable_ApplyError": 3,
+      "unreachable_TimeoutError": 2,
       "weak_shot": 0
     }
   },
@@ -526,24 +526,16 @@
       "replies": 1,
       "sent": 4
     },
-    "2026-11-14": {
-      "filled": 2,
-      "found": 2,
-      "interviews": 0,
-      "rejections": 0,
-      "replies": 0,
-      "sent": 0
-    },
     "2026-11-15": {
-      "filled": 16,
-      "found": 16,
+      "filled": 18,
+      "found": 18,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-15T06:42:30Z",
+  "generated_at": "2026-11-15T07:13:56Z",
   "question_shapes": {
     "employer_site: field: _": 1,
     "employer_site: field: _ _ none of _ _ is _ _": 1,
@@ -564,15 +556,10 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 5,
-    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _": 1,
     "workable: field: _ _ _ _ _ _": 2,
     "workable: field: _ _ _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _ the _ _": 1,
-    "workable: field: _ _ _ company _ _ _ _ _": 1,
-    "workable: field: open to all": 1,
     "workable: field: resume _": 9,
-    "workable: field: us": 1,
     "workable: radio: have you been convicted of a felony": 1
   },
   "sent_all_time": 363,
