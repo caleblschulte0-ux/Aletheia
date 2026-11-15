@@ -375,6 +375,7 @@
     "days": 3,
     "why": {
       "gone_on_ashbyhq": 1,
+      "gone_on_lever": 1,
       "gone_on_recruitee": 2,
       "left_no_way_forward": 6,
       "left_questions": 9,
@@ -527,7 +528,7 @@
       "sent": 4
     },
     "2026-11-15": {
-      "filled": 18,
+      "filled": 17,
       "found": 18,
       "interviews": 0,
       "rejections": 0,
@@ -535,7 +536,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-15T07:44:14Z",
+  "generated_at": "2026-11-15T08:14:30Z",
   "question_shapes": {
     "employer_site: field: _": 1,
     "employer_site: field: _ _ none of _ _ is _ _": 1,
@@ -544,7 +545,6 @@
     "employer_site: field: select state select state for city _ _ of _ _ _": 1,
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
-    "lever: field: _ _ _ _ _ _ _ _ _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: what is your _ range": 1,
@@ -556,15 +556,10 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 5,
-    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _": 1,
     "workable: field: _ _ _ _ _ _": 2,
     "workable: field: _ _ _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _ the _ _": 1,
-    "workable: field: _ _ _ company _ _ _ _ _": 1,
-    "workable: field: open to all": 1,
     "workable: field: resume _": 9,
-    "workable: field: us": 1,
     "workable: radio: have you been convicted of a felony": 1
   },
   "sent_all_time": 363,
@@ -656,7 +651,7 @@
     }
   },
   "totals": {
-    "filled": 112,
+    "filled": 111,
     "found": 561,
     "interviews": 9,
     "rejections": 6,
@@ -669,13 +664,13 @@
       "background_check": 1,
       "demographic_gender": 1,
       "on_site": 2,
-      "other": 21,
+      "other": 20,
       "travel": 1,
       "years_experience": 1
     },
     "closed": {
       "gone_on_ashbyhq": 6,
-      "gone_on_lever": 2,
+      "gone_on_lever": 3,
       "gone_on_recruitee": 2,
       "gone_on_workable": 116,
       "left_captcha": 41,
@@ -701,7 +696,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 22,
+    "needs_answer": 21,
     "oldest_days": 63,
     "to_send": 0
   },
