@@ -536,7 +536,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-16T02:40:29Z",
+  "generated_at": "2026-11-16T03:10:44Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -552,8 +552,9 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 5,
-    "workable: field: _ _ _ _ _": 3,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 2,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _ _ the _ _": 1,
     "workable: field: _ _ _ company _ _ _ _ _": 1,
     "workable: field: open to all": 1,
@@ -572,7 +573,6 @@
     "employer_site: empty_page: none": 1,
     "employer_site: no_apply: _ _ _": 1,
     "employer_site: no_apply: _ _ | _ _ _ | _ | next | _ _ _ _ _": 1,
-    "employer_site: no_apply: _ _ | _ _ linkedin | _ _ _ | _ _ _ _": 1,
     "employer_site: no_apply: _ _ | open _ _ | _ to _ _ | _ to _ | _ _ _": 1,
     "employer_site: no_apply: _ to _ | about | _ openings | email the _ _ _ | _": 1,
     "employer_site: no_apply: search | _ | _ _ _ _ _ | _ to _": 1
@@ -622,7 +622,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 7
+        "nothing_to_press_on_captcha/filled": 4
       },
       "error": {
         "nothing_to_press_on_unread/observed": 1
@@ -632,7 +632,7 @@
         "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/observed": 3,
         "nothing_to_press_on_form+no_apply/observed": 1,
-        "unclear_button/observed": 2
+        "unclear_button/observed": 1
       },
       "questions": {
         "nothing_to_press_on_form/filled": 5,
