@@ -536,7 +536,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-16T03:10:44Z",
+  "generated_at": "2026-11-16T03:42:02Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -622,10 +622,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 4
-      },
-      "error": {
-        "nothing_to_press_on_unread/observed": 1
+        "nothing_to_press_on_captcha/filled": 1
       },
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
@@ -639,8 +636,7 @@
         "nothing_to_press_on_multi_page_wizard/filled": 6
       },
       "sign_in": {
-        "nothing_to_press_on_account_login/observed": 1,
-        "nothing_to_press_on_account_login/submit_clicked": 1
+        "nothing_to_press_on_account_login/observed": 1
       }
     }
   },
