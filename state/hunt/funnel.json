@@ -536,7 +536,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-16T04:12:34Z",
+  "generated_at": "2026-11-16T04:43:02Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -571,7 +571,6 @@
   "stop_shapes": {
     "employer_site: apply_not_taken: careers | _ _ _ | _ | _ _": 1,
     "employer_site: empty_page: none": 1,
-    "employer_site: no_apply: _ _ _": 1,
     "employer_site: no_apply: _ _ | _ _ _ | _ | next | _ _ _ _ _": 1,
     "employer_site: no_apply: _ _ | open _ _ | _ to _ _ | _ to _ | _ _ _": 1,
     "employer_site: no_apply: _ to _ | about | _ openings | email the _ _ _ | _": 1,
@@ -627,16 +626,13 @@
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
         "nothing_to_press_on_content+empty_page/observed": 1,
-        "nothing_to_press_on_content+no_apply/observed": 3,
+        "nothing_to_press_on_content+no_apply/observed": 2,
         "nothing_to_press_on_form+no_apply/observed": 1,
         "unclear_button/observed": 1
       },
       "questions": {
         "nothing_to_press_on_form/filled": 5,
         "nothing_to_press_on_multi_page_wizard/filled": 6
-      },
-      "sign_in": {
-        "nothing_to_press_on_account_login/observed": 1
       }
     }
   },
