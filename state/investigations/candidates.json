@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-16T19:45:17Z",
+  "generated_at": "2026-11-17T04:02:39Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,7 +30,7 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 20,
+      "rows_scanned": 7,
       "flagged": 0
     },
     {
