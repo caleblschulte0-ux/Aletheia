@@ -1,12 +1,12 @@
 # Investigations candidates - SIOUX FALLS, SD
 
-Generated 2026-11-17T04:02:39Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
+Generated 2026-11-17T16:18:43Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
 
 - source `cms_partd`: ok, scanned 1742 rows, 35 flagged
 - source `fda_recalls`: ok, scanned 24 rows, 0 flagged
 - source `epa_echo`: ok, scanned 13292 rows, 6 flagged
 - source `cms_care_compare_nh`: ok, scanned 96 rows, 0 flagged
-- source `sky_watch`: ok, scanned 7 rows, 0 flagged
+- source `sky_watch`: ok, scanned 11 rows, 3 flagged
 - source `sf_food_safety`: ok, scanned 436 rows, 5 flagged
 
 ## 1. Welch, David  (cms_partd_opioids)
@@ -214,27 +214,42 @@ Generated 2026-11-17T04:02:39Z by the deterministic scanner. Each line is a QUES
 - evidence: {"registry_id": "110000427823", "significant_noncomplier": false, "formal_actions": 1, "total_penalties": 0.0, "quarters_with_noncompliance": "2", "compliance": {"overall": "No Violation Identified", "air_caa": "No Violation Identified", "water_cwa": "No Violation Identified", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats", "last_inspection": "08/20/2026", "address": "1400 NORTH WEBER AVENUE", "city": "SIOUX FALLS"}
 - next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
 
-## 42. PLAZA AZTECA  (sf_food_safety)
+## 42. N202UX  (sky_watch)
+- N202UX (B190), owner ALPINE AVIATION INC: non-scheduled aircraft 3225ft near FSD (9nm)
+- evidence: {"tail": "N202UX", "type": "B190", "callsign": "AIP1604", "owner_operator": "ALPINE AVIATION INC", "squawk": "3221", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 3225.0, "distance_from_fsd_nm": 8.7, "times_seen": 1, "first_seen": "2026-11-17"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
+
+## 43. N880AC  (sky_watch)
+- N880AC (MU2), owner N880AC LLC: non-scheduled aircraft 5300ft near FSD (5nm)
+- evidence: {"tail": "N880AC", "type": "MU2", "callsign": "N880AC", "owner_operator": "N880AC LLC", "squawk": "7010", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 5300.0, "distance_from_fsd_nm": 4.7, "times_seen": 1, "first_seen": "2026-11-17"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
+
+## 44. N127GA  (sky_watch)
+- N127GA (BE20), owner BEECH TRANSPORTATION INC: non-scheduled aircraft 3850ft near FSD (11nm)
+- evidence: {"tail": "N127GA", "type": "BE20", "callsign": "N127GA", "owner_operator": "BEECH TRANSPORTATION INC", "squawk": "4555", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 3850.0, "distance_from_fsd_nm": 11.1, "times_seen": 1, "first_seen": "2026-11-17"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
+
+## 45. PLAZA AZTECA  (sf_food_safety)
 - PLAZA AZTECA (3500 W 69TH ST): 9 critical food-safety violations across 2 inspections, including 'HANDWASHING LAVATORIES AND SUPPLIES' cited 4x -- a recurring, uncorrected hazard
 - evidence: {"site_no": 4610, "address": "3500 W 69TH ST", "site_type": "Restaurant", "critical_violations": 9, "inspections": 2, "recent_scores": [81.0], "recurring_critical_codes": [{"code": "37", "times": 4}, {"code": "12", "times": 3}, {"code": "44", "times": 2}], "worst_hazard": "HANDWASHING LAVATORIES AND SUPPLIES"}
 - next record: whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it
 
-## 43. CARNAVAL BRAZILIAN STEAKHOUSE  (sf_food_safety)
+## 46. CARNAVAL BRAZILIAN STEAKHOUSE  (sf_food_safety)
 - CARNAVAL BRAZILIAN STEAKHOUSE (2401 S CAROLYN AVE): 7 critical food-safety violations across 2 inspections, including 'HANDWASHING LAVATORIES AND SUPPLIES' cited 3x -- a recurring, uncorrected hazard
 - evidence: {"site_no": 5216, "address": "2401 S CAROLYN AVE", "site_type": "Food Facility", "critical_violations": 7, "inspections": 2, "recent_scores": [88.0, 87.0], "recurring_critical_codes": [{"code": "37", "times": 3}, {"code": "15", "times": 2}, {"code": "8", "times": 2}], "worst_hazard": "HANDWASHING LAVATORIES AND SUPPLIES"}
 - next record: whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it
 
-## 44. FUJI SUSHI & HIBACHI  (sf_food_safety)
+## 47. FUJI SUSHI & HIBACHI  (sf_food_safety)
 - FUJI SUSHI & HIBACHI (2801 W 41ST ST): 7 critical food-safety violations across 2 inspections, including 'CROSS CONTAMINATION' cited 3x -- a recurring, uncorrected hazard
 - evidence: {"site_no": 4082, "address": "2801 W 41ST ST", "site_type": "Restaurant", "critical_violations": 7, "inspections": 2, "recent_scores": [80.0, 82.0], "recurring_critical_codes": [{"code": "8", "times": 3}, {"code": "15", "times": 2}], "worst_hazard": "CROSS CONTAMINATION"}
 - next record: whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it
 
-## 45. HOOK AND LADDER  (sf_food_safety)
+## 48. HOOK AND LADDER  (sf_food_safety)
 - HOOK AND LADDER (323 S WHITEWOOD CIR): 6 critical food-safety violations across 2 inspections, including 'HANDWASHING LAVATORIES AND SUPPLIES' cited 3x -- a recurring, uncorrected hazard
 - evidence: {"site_no": 4994, "address": "323 S WHITEWOOD CIR", "site_type": "Restaurant", "critical_violations": 6, "inspections": 2, "recent_scores": [84.0, 90.0], "recurring_critical_codes": [{"code": "37", "times": 3}], "worst_hazard": "HANDWASHING LAVATORIES AND SUPPLIES"}
 - next record: whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it
 
-## 46. RUBY TUESDAY  (sf_food_safety)
+## 49. RUBY TUESDAY  (sf_food_safety)
 - RUBY TUESDAY (2425 S SHIRLEY AVE 110): 5 critical food-safety violations across 2 inspections, including 'CROSS CONTAMINATION' cited 3x -- a recurring, uncorrected hazard
 - evidence: {"site_no": 1428, "address": "2425 S SHIRLEY AVE 110", "site_type": "Restaurant", "critical_violations": 5, "inspections": 2, "recent_scores": [89.0, 83.0], "recurring_critical_codes": [{"code": "8", "times": 3}], "worst_hazard": "CROSS CONTAMINATION"}
 - next record: whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it

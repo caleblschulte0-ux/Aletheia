@@ -34,6 +34,13 @@
     "owner_operator": "MEDARY AVIATION LLC",
     "type": "C172"
   },
+  "N127GA": {
+    "count": 1,
+    "first_seen": "2026-11-17",
+    "last_seen": "2026-11-17",
+    "owner_operator": "BEECH TRANSPORTATION INC",
+    "type": "BE20"
+  },
   "N1648A": {
     "count": 1,
     "first_seen": "2026-11-14",
@@ -61,6 +68,13 @@
     "last_seen": "2026-11-09",
     "owner_operator": "PRO AG AVIATION LLC",
     "type": "S22T"
+  },
+  "N202UX": {
+    "count": 1,
+    "first_seen": "2026-11-17",
+    "last_seen": "2026-11-17",
+    "owner_operator": "ALPINE AVIATION INC",
+    "type": "B190"
   },
   "N207P": {
     "count": 1,
@@ -257,6 +271,13 @@
     "last_seen": "2026-11-11",
     "owner_operator": "TVPX AIRCRAFT SOLUTIONS INC TRUSTEE",
     "type": "C525"
+  },
+  "N880AC": {
+    "count": 1,
+    "first_seen": "2026-11-17",
+    "last_seen": "2026-11-17",
+    "owner_operator": "N880AC LLC",
+    "type": "MU2"
   },
   "N889SD": {
     "count": 1,

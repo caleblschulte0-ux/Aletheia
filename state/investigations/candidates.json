@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-17T04:02:39Z",
+  "generated_at": "2026-11-17T16:18:43Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,8 +30,8 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 7,
-      "flagged": 0
+      "rows_scanned": 11,
+      "flagged": 3
     },
     {
       "check": "sf_food_safety",
@@ -40,7 +40,7 @@
       "flagged": 5
     }
   ],
-  "candidate_count": 46,
+  "candidate_count": 49,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -903,6 +903,75 @@
       "source": "EPA ECHO (enforcement & compliance)",
       "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N202UX",
+      "summary": "N202UX (B190), owner ALPINE AVIATION INC: non-scheduled aircraft 3225ft near FSD (9nm)",
+      "evidence": {
+        "tail": "N202UX",
+        "type": "B190",
+        "callsign": "AIP1604",
+        "owner_operator": "ALPINE AVIATION INC",
+        "squawk": "3221",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": false,
+        "altitude_ft": 3225.0,
+        "distance_from_fsd_nm": 8.7,
+        "times_seen": 1,
+        "first_seen": "2026-11-17"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N880AC",
+      "summary": "N880AC (MU2), owner N880AC LLC: non-scheduled aircraft 5300ft near FSD (5nm)",
+      "evidence": {
+        "tail": "N880AC",
+        "type": "MU2",
+        "callsign": "N880AC",
+        "owner_operator": "N880AC LLC",
+        "squawk": "7010",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": false,
+        "altitude_ft": 5300.0,
+        "distance_from_fsd_nm": 4.7,
+        "times_seen": 1,
+        "first_seen": "2026-11-17"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N127GA",
+      "summary": "N127GA (BE20), owner BEECH TRANSPORTATION INC: non-scheduled aircraft 3850ft near FSD (11nm)",
+      "evidence": {
+        "tail": "N127GA",
+        "type": "BE20",
+        "callsign": "N127GA",
+        "owner_operator": "BEECH TRANSPORTATION INC",
+        "squawk": "4555",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": false,
+        "altitude_ft": 3850.0,
+        "distance_from_fsd_nm": 11.1,
+        "times_seen": 1,
+        "first_seen": "2026-11-17"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     },
     {
       "check": "sf_food_safety",
