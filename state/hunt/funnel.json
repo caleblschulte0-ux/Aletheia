@@ -359,6 +359,25 @@
       "unreachable": 1,
       "unreachable_TimeoutError": 1,
       "weak_shot": 0
+    },
+    "2026-11-18": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 28,
+      "needs_account": 0,
+      "needs_answer": 3,
+      "not_realistic": 48,
+      "offered": 53,
+      "ready": 1,
+      "runs": 1,
+      "unfit_model": 3,
+      "unfit_pay": 1,
+      "unfit_sales": 43,
+      "unfit_years": 1,
+      "unjudged": 0,
+      "unreachable": 1,
+      "unreachable_TimeoutError": 1,
+      "weak_shot": 0
     }
   },
   "boards": {
@@ -373,9 +392,7 @@
   "closed_recently": {
     "days": 3,
     "why": {
-      "gone_on_lever": 1,
-      "left_no_way_forward": 1,
-      "left_questions": 2
+      "left_no_way_forward": 3
     }
   },
   "days": {
@@ -522,11 +539,21 @@
       "rejections": 0,
       "replies": 2,
       "sent": 6
+    },
+    "2026-11-18": {
+      "filled": 2,
+      "found": 4,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
     }
   },
-  "generated_at": "2026-11-18T05:57:33Z",
+  "generated_at": "2026-11-18T06:27:35Z",
   "question_shapes": {
-    "ashbyhq: textarea: are you _ _ _ please _ the language _ and proficiency": 1,
+    "ashbyhq: radio: _ _ consent": 1,
+    "ashbyhq: textarea: are you _ _ _ please _ the language _ and proficiency": 2,
+    "ashbyhq: textarea: please _ one of the _ questions tell us a _ of": 1,
     "employer_site: field: _ _ the privacy policy and terms of _ _": 1,
     "employer_site: field: _ or email the _ would _ _ the _ _ have": 2,
     "employer_site: field: _ terms": 1,
@@ -557,7 +584,9 @@
     "lever": 13
   },
   "stop_shapes": {
-    "employer_site: no_apply: _ _ | our _ | _ _ _ | _ jobs | view all | _": 1
+    "employer_site: no_apply: _ _ | our _ | _ _ _ | _ jobs | view all | _": 1,
+    "employer_site: no_apply: google _ _ with _ | cookie preferences | accept | reject | cookie settings | home": 1,
+    "myworkdayjobs: empty_page: none": 1
   },
   "stuck_at": {
     "captcha": {
@@ -577,13 +606,13 @@
     "no_way_forward": {
       "nothing_to_press_on_content+apply_not_taken/observed": 2,
       "nothing_to_press_on_content+empty_page/filled": 1,
-      "nothing_to_press_on_content+empty_page/observed": 6,
+      "nothing_to_press_on_content+empty_page/observed": 7,
       "nothing_to_press_on_content+no_apply/filled": 3,
       "nothing_to_press_on_content+no_apply/observed": 35,
       "nothing_to_press_on_form+apply_not_taken/filled": 1,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 3,
-      "nothing_to_press_on_form+no_apply/observed": 4,
+      "nothing_to_press_on_form+no_apply/observed": 5,
       "nothing_to_press_on_multi_page_wizard+no_apply/observed": 1,
       "nothing_to_press_on_success+no_apply/observed": 1,
       "unclear_button/observed": 7
@@ -605,6 +634,8 @@
     "days": 3,
     "where": {
       "no_way_forward": {
+        "nothing_to_press_on_content+empty_page/observed": 1,
+        "nothing_to_press_on_form+no_apply/observed": 1,
         "nothing_to_press_on_multi_page_wizard+no_apply/observed": 1
       },
       "questions": {
@@ -613,8 +644,8 @@
     }
   },
   "totals": {
-    "filled": 112,
-    "found": 556,
+    "filled": 114,
+    "found": 560,
     "interviews": 10,
     "rejections": 6,
     "replies": 22,
@@ -626,7 +657,7 @@
       "contact": 2,
       "demographic_gender": 1,
       "on_site": 2,
-      "other": 22,
+      "other": 23,
       "travel": 1,
       "years_experience": 1
     },
@@ -638,7 +669,7 @@
       "left_captcha": 40,
       "left_error": 14,
       "left_going_in_circles": 3,
-      "left_no_way_forward": 65,
+      "left_no_way_forward": 67,
       "left_posting_closed": 2,
       "left_questions": 63,
       "left_sign_in": 10,
@@ -658,7 +689,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 23,
+    "needs_answer": 24,
     "oldest_days": 66,
     "to_send": 0
   },
