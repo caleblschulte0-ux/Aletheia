@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-17T16:18:43Z",
+  "generated_at": "2026-11-18T01:04:53Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,17 +30,17 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 11,
-      "flagged": 3
+      "rows_scanned": 15,
+      "flagged": 2
     },
     {
       "check": "sf_food_safety",
       "ok": true,
-      "rows_scanned": 436,
-      "flagged": 5
+      "rows_scanned": 427,
+      "flagged": 4
     }
   ],
-  "candidate_count": 49,
+  "candidate_count": 47,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -906,68 +906,45 @@
     },
     {
       "check": "sky_watch",
-      "kind": "context",
-      "subject": "N202UX",
-      "summary": "N202UX (B190), owner ALPINE AVIATION INC: non-scheduled aircraft 3225ft near FSD (9nm)",
-      "evidence": {
-        "tail": "N202UX",
-        "type": "B190",
-        "callsign": "AIP1604",
-        "owner_operator": "ALPINE AVIATION INC",
-        "squawk": "3221",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 3225.0,
-        "distance_from_fsd_nm": 8.7,
-        "times_seen": 1,
-        "first_seen": "2026-11-17"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N880AC",
-      "summary": "N880AC (MU2), owner N880AC LLC: non-scheduled aircraft 5300ft near FSD (5nm)",
-      "evidence": {
-        "tail": "N880AC",
-        "type": "MU2",
-        "callsign": "N880AC",
-        "owner_operator": "N880AC LLC",
-        "squawk": "7010",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 5300.0,
-        "distance_from_fsd_nm": 4.7,
-        "times_seen": 1,
-        "first_seen": "2026-11-17"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
+      "kind": "anomaly",
       "subject": "N127GA",
-      "summary": "N127GA (BE20), owner BEECH TRANSPORTATION INC: non-scheduled aircraft 3850ft near FSD (11nm)",
+      "summary": "N127GA (BE20), owner BEECH TRANSPORTATION INC: non-scheduled aircraft on the ground at FSD (0nm) -- seen 2 times (repeat; first 2026-11-17)",
       "evidence": {
         "tail": "N127GA",
         "type": "BE20",
         "callsign": "N127GA",
         "owner_operator": "BEECH TRANSPORTATION INC",
-        "squawk": "4555",
+        "squawk": "4524",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": true,
+        "altitude_ft": null,
+        "distance_from_fsd_nm": 0.2,
+        "times_seen": 2,
+        "first_seen": "2026-11-17"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N725ME",
+      "summary": "N725ME (C25C), owner MMP AIRFLIGHT LLC: non-scheduled aircraft 1850ft near FSD (2nm)",
+      "evidence": {
+        "tail": "N725ME",
+        "type": "C25C",
+        "callsign": "N725ME",
+        "owner_operator": "MMP AIRFLIGHT LLC",
+        "squawk": "3757",
         "military": false,
         "foreign_registration": false,
         "on_ground": false,
-        "altitude_ft": 3850.0,
-        "distance_from_fsd_nm": 11.1,
+        "altitude_ft": 1850.0,
+        "distance_from_fsd_nm": 2.1,
         "times_seen": 1,
-        "first_seen": "2026-11-17"
+        "first_seen": "2026-11-18"
       },
       "source": "ADS-B (adsb.fi) + FAA registry",
       "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
@@ -1095,33 +1072,6 @@
           }
         ],
         "worst_hazard": "HANDWASHING LAVATORIES AND SUPPLIES"
-      },
-      "source": "Sioux Falls food inspection violations (city ArcGIS)",
-      "why_him": "a licensed food establishment's public inspection record; the business is the target, records-based, never an individual",
-      "next_record": "whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it"
-    },
-    {
-      "check": "sf_food_safety",
-      "kind": "anomaly",
-      "subject": "RUBY TUESDAY",
-      "summary": "RUBY TUESDAY (2425 S SHIRLEY AVE 110): 5 critical food-safety violations across 2 inspections, including 'CROSS CONTAMINATION' cited 3x -- a recurring, uncorrected hazard",
-      "evidence": {
-        "site_no": 1428,
-        "address": "2425 S SHIRLEY AVE 110",
-        "site_type": "Restaurant",
-        "critical_violations": 5,
-        "inspections": 2,
-        "recent_scores": [
-          89.0,
-          83.0
-        ],
-        "recurring_critical_codes": [
-          {
-            "code": "8",
-            "times": 3
-          }
-        ],
-        "worst_hazard": "CROSS CONTAMINATION"
       },
       "source": "Sioux Falls food inspection violations (city ArcGIS)",
       "why_him": "a licensed food establishment's public inspection record; the business is the target, records-based, never an individual",

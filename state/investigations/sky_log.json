@@ -35,9 +35,9 @@
     "type": "C172"
   },
   "N127GA": {
-    "count": 1,
+    "count": 2,
     "first_seen": "2026-11-17",
-    "last_seen": "2026-11-17",
+    "last_seen": "2026-11-18",
     "owner_operator": "BEECH TRANSPORTATION INC",
     "type": "BE20"
   },
@@ -194,6 +194,13 @@
     "last_seen": "2026-11-10",
     "owner_operator": "WEILER DOUGLAS C",
     "type": "RV7"
+  },
+  "N725ME": {
+    "count": 1,
+    "first_seen": "2026-11-18",
+    "last_seen": "2026-11-18",
+    "owner_operator": "MMP AIRFLIGHT LLC",
+    "type": "C25C"
   },
   "N7278X": {
     "count": 1,
