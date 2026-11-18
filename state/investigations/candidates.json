@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-18T01:04:53Z",
+  "generated_at": "2026-11-18T12:00:10Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,8 +30,8 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 15,
-      "flagged": 2
+      "rows_scanned": 7,
+      "flagged": 1
     },
     {
       "check": "sf_food_safety",
@@ -40,7 +40,7 @@
       "flagged": 4
     }
   ],
-  "candidate_count": 47,
+  "candidate_count": 46,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -906,43 +906,20 @@
     },
     {
       "check": "sky_watch",
-      "kind": "anomaly",
-      "subject": "N127GA",
-      "summary": "N127GA (BE20), owner BEECH TRANSPORTATION INC: non-scheduled aircraft on the ground at FSD (0nm) -- seen 2 times (repeat; first 2026-11-17)",
+      "kind": "context",
+      "subject": "N108BM",
+      "summary": "N108BM (C68A), owner POET INC: non-scheduled aircraft on the ground at FSD (1nm)",
       "evidence": {
-        "tail": "N127GA",
-        "type": "BE20",
-        "callsign": "N127GA",
-        "owner_operator": "BEECH TRANSPORTATION INC",
-        "squawk": "4524",
+        "tail": "N108BM",
+        "type": "C68A",
+        "callsign": "N108BM",
+        "owner_operator": "POET INC",
+        "squawk": "4541",
         "military": false,
         "foreign_registration": false,
         "on_ground": true,
         "altitude_ft": null,
-        "distance_from_fsd_nm": 0.2,
-        "times_seen": 2,
-        "first_seen": "2026-11-17"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N725ME",
-      "summary": "N725ME (C25C), owner MMP AIRFLIGHT LLC: non-scheduled aircraft 1850ft near FSD (2nm)",
-      "evidence": {
-        "tail": "N725ME",
-        "type": "C25C",
-        "callsign": "N725ME",
-        "owner_operator": "MMP AIRFLIGHT LLC",
-        "squawk": "3757",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 1850.0,
-        "distance_from_fsd_nm": 2.1,
+        "distance_from_fsd_nm": 0.7,
         "times_seen": 1,
         "first_seen": "2026-11-18"
       },
