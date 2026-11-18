@@ -345,10 +345,10 @@
     }
   },
   "boards": {
-    "ashby": 146,
+    "ashby": 148,
     "bamboohr": 5,
     "greenhouse": 103,
-    "lever": 82,
+    "lever": 83,
     "recruitee": 7,
     "smartrecruiters": 39,
     "workable": 10
@@ -498,23 +498,26 @@
       "sent": 0
     },
     "2026-11-17": {
-      "filled": 17,
-      "found": 17,
+      "filled": 18,
+      "found": 18,
       "interviews": 1,
       "rejections": 0,
       "replies": 2,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-18T04:25:34Z",
+  "generated_at": "2026-11-18T04:55:45Z",
   "question_shapes": {
+    "ashbyhq: checkbox: which of the _ _ do you _ to please select all": 1,
+    "ashbyhq: radio: _ _ a _ a week in office company are you open": 1,
+    "ashbyhq: radio: what is your _ _": 1,
+    "ashbyhq: text: preferred _": 1,
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: what is your _ range": 1,
     "lever: select: _ _ to _ _": 1,
-    "lever: text: _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: checkbox: what is your preferred work _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
@@ -585,8 +588,8 @@
     }
   },
   "totals": {
-    "filled": 99,
-    "found": 542,
+    "filled": 100,
+    "found": 543,
     "interviews": 10,
     "rejections": 6,
     "replies": 22,
@@ -596,8 +599,8 @@
     "asked_about": {
       "background_check": 1,
       "demographic_gender": 1,
-      "on_site": 2,
-      "other": 17,
+      "on_site": 3,
+      "other": 18,
       "travel": 1,
       "years_experience": 2
     },
@@ -629,7 +632,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 19,
+    "needs_answer": 20,
     "oldest_days": 66,
     "to_send": 0
   },
