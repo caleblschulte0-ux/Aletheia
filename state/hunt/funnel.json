@@ -363,19 +363,20 @@
     "2026-11-18": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 28,
+      "minutes": 38,
       "needs_account": 0,
       "needs_answer": 3,
-      "not_realistic": 48,
-      "offered": 53,
-      "ready": 1,
-      "runs": 1,
+      "not_realistic": 51,
+      "offered": 58,
+      "ready": 2,
+      "runs": 2,
       "unfit_model": 3,
       "unfit_pay": 1,
-      "unfit_sales": 43,
+      "unfit_sales": 46,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 1,
+      "unreachable": 2,
+      "unreachable_ApplyError": 1,
       "unreachable_TimeoutError": 1,
       "weak_shot": 0
     }
@@ -533,23 +534,23 @@
       "sent": 0
     },
     "2026-11-17": {
-      "filled": 30,
-      "found": 31,
+      "filled": 18,
+      "found": 19,
       "interviews": 1,
       "rejections": 0,
       "replies": 2,
       "sent": 6
     },
     "2026-11-18": {
-      "filled": 2,
-      "found": 4,
+      "filled": 14,
+      "found": 16,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-18T06:27:35Z",
+  "generated_at": "2026-11-18T06:57:52Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ consent": 1,
     "ashbyhq: textarea: are you _ _ _ please _ the language _ and proficiency": 2,
@@ -570,11 +571,10 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: checkbox: which of the _ _ are you able to work in": 1,
-    "workable: field: _": 1,
-    "workable: field: _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _": 2,
-    "workable: field: resume _": 9,
+    "workable: field: _": 2,
+    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 2,
+    "workable: field: resume _": 10,
     "workable: radio: have you been convicted of a felony": 1
   },
   "sent_all_time": 369,
