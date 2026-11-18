@@ -363,21 +363,22 @@
     "2026-11-18": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 38,
+      "minutes": 45,
       "needs_account": 0,
       "needs_answer": 3,
       "not_realistic": 51,
-      "offered": 58,
+      "offered": 62,
       "ready": 2,
-      "runs": 2,
+      "runs": 4,
       "unfit_model": 3,
       "unfit_pay": 1,
       "unfit_sales": 46,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 2,
-      "unreachable_ApplyError": 1,
+      "unreachable": 6,
+      "unreachable_ApplyError": 4,
       "unreachable_TimeoutError": 1,
+      "unreachable_left_till_tomorrow": 1,
       "weak_shot": 0
     }
   },
@@ -534,27 +535,26 @@
       "sent": 0
     },
     "2026-11-17": {
-      "filled": 18,
-      "found": 19,
+      "filled": 10,
+      "found": 11,
       "interviews": 1,
       "rejections": 0,
       "replies": 2,
       "sent": 6
     },
     "2026-11-18": {
-      "filled": 14,
-      "found": 16,
+      "filled": 22,
+      "found": 24,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-18T06:57:52Z",
+  "generated_at": "2026-11-18T07:27:56Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ consent": 1,
     "ashbyhq: textarea: are you _ _ _ please _ the language _ and proficiency": 2,
-    "ashbyhq: textarea: please _ one of the _ questions tell us a _ of": 1,
     "employer_site: field: _ _ the privacy policy and terms of _ _": 1,
     "employer_site: field: _ or email the _ would _ _ the _ _ have": 2,
     "employer_site: field: _ terms": 1,
