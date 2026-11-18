@@ -490,23 +490,23 @@
       "sent": 4
     },
     "2026-11-15": {
-      "filled": 10,
-      "found": 11,
+      "filled": 6,
+      "found": 7,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     },
     "2026-11-17": {
-      "filled": 7,
-      "found": 7,
+      "filled": 11,
+      "found": 11,
       "interviews": 1,
       "rejections": 0,
       "replies": 2,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-18T02:11:22Z",
+  "generated_at": "2026-11-18T03:54:45Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -580,8 +580,7 @@
     "days": 3,
     "where": {
       "questions": {
-        "nothing_to_press_on_form/filled": 5,
-        "nothing_to_press_on_multi_page_wizard/filled": 5
+        "nothing_to_press_on_form/filled": 2
       }
     }
   },
