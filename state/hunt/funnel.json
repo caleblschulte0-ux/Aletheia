@@ -521,12 +521,11 @@
       "interviews": 1,
       "rejections": 0,
       "replies": 2,
-      "sent": 4
+      "sent": 6
     }
   },
-  "generated_at": "2026-11-18T05:26:15Z",
+  "generated_at": "2026-11-18T05:57:33Z",
   "question_shapes": {
-    "ashbyhq: radio: _ _ consent": 1,
     "ashbyhq: textarea: are you _ _ _ please _ the language _ and proficiency": 1,
     "employer_site: field: _ _ the privacy policy and terms of _ _": 1,
     "employer_site: field: _ or email the _ would _ _ the _ _ have": 2,
@@ -538,25 +537,24 @@
     "lever: field: name": 2,
     "lever: radio: what is your _ range": 1,
     "lever: select: _ _ to _ _": 1,
-    "lever: text: _ _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: checkbox: what is your preferred work _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 2,
-    "workable: field: _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _ _": 2,
+    "workable: checkbox: which of the _ _ are you able to work in": 1,
+    "workable: field: _": 1,
+    "workable: field: _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _": 2,
     "workable: field: resume _": 9,
-    "workable: radio: have you been convicted of a felony": 1,
-    "workable: text: how _ years of _ _ saas sales experience do you have": 1
+    "workable: radio: have you been convicted of a felony": 1
   },
-  "sent_all_time": 367,
+  "sent_all_time": 369,
   "sent_by_system": {
     "ashbyhq": 29,
-    "employer_site": 10,
-    "lever": 12
+    "employer_site": 11,
+    "lever": 13
   },
   "stop_shapes": {
     "employer_site: no_apply: _ _ | our _ | _ _ _ | _ jobs | view all | _": 1
@@ -620,7 +618,7 @@
     "interviews": 10,
     "rejections": 6,
     "replies": 22,
-    "sent": 51
+    "sent": 53
   },
   "waiting": {
     "asked_about": {
@@ -630,7 +628,7 @@
       "on_site": 2,
       "other": 22,
       "travel": 1,
-      "years_experience": 2
+      "years_experience": 1
     },
     "closed": {
       "gone_on_ashbyhq": 6,
@@ -660,9 +658,9 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 24,
+    "needs_answer": 23,
     "oldest_days": 66,
-    "to_send": 3
+    "to_send": 0
   },
   "window_days": 30
 }
