@@ -490,23 +490,23 @@
       "sent": 4
     },
     "2026-11-15": {
-      "filled": 6,
-      "found": 7,
+      "filled": 0,
+      "found": 1,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     },
     "2026-11-17": {
-      "filled": 11,
-      "found": 11,
+      "filled": 17,
+      "found": 17,
       "interviews": 1,
       "rejections": 0,
       "replies": 2,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-18T03:54:45Z",
+  "generated_at": "2026-11-18T04:25:34Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -523,10 +523,10 @@
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
     "workable: field: _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _ _": 1,
-    "workable: field: resume _": 9,
-    "workable: radio: have you been convicted of a felony": 1
+    "workable: field: _ _ _ _ _ _ _ _": 2,
+    "workable: field: resume _": 8,
+    "workable: radio: have you been convicted of a felony": 1,
+    "workable: text: how _ years of _ _ saas sales experience do you have": 1
   },
   "sent_all_time": 363,
   "sent_by_system": {
@@ -597,9 +597,9 @@
       "background_check": 1,
       "demographic_gender": 1,
       "on_site": 2,
-      "other": 18,
+      "other": 17,
       "travel": 1,
-      "years_experience": 1
+      "years_experience": 2
     },
     "closed": {
       "gone_on_ashbyhq": 6,
