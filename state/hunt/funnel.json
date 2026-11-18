@@ -342,6 +342,23 @@
       "unreachable_ApplyError": 3,
       "unreachable_TimeoutError": 2,
       "weak_shot": 0
+    },
+    "2026-11-17": {
+      "duplicate": 2,
+      "employer_full": 0,
+      "minutes": 52,
+      "needs_account": 0,
+      "needs_answer": 6,
+      "not_realistic": 4,
+      "offered": 26,
+      "ready": 8,
+      "runs": 1,
+      "unfit_model": 1,
+      "unfit_sales": 3,
+      "unjudged": 0,
+      "unreachable": 1,
+      "unreachable_TimeoutError": 1,
+      "weak_shot": 0
     }
   },
   "boards": {
@@ -357,6 +374,7 @@
     "days": 3,
     "why": {
       "gone_on_lever": 1,
+      "left_no_way_forward": 1,
       "left_questions": 2
     }
   },
@@ -498,46 +516,51 @@
       "sent": 0
     },
     "2026-11-17": {
-      "filled": 18,
-      "found": 18,
+      "filled": 30,
+      "found": 31,
       "interviews": 1,
       "rejections": 0,
       "replies": 2,
-      "sent": 0
+      "sent": 4
     }
   },
-  "generated_at": "2026-11-18T04:55:45Z",
+  "generated_at": "2026-11-18T05:26:15Z",
   "question_shapes": {
-    "ashbyhq: checkbox: which of the _ _ do you _ to please select all": 1,
-    "ashbyhq: radio: _ _ a _ a week in office company are you open": 1,
-    "ashbyhq: radio: what is your _ _": 1,
-    "ashbyhq: text: preferred _": 1,
+    "ashbyhq: radio: _ _ consent": 1,
+    "ashbyhq: textarea: are you _ _ _ please _ the language _ and proficiency": 1,
+    "employer_site: field: _ _ the privacy policy and terms of _ _": 1,
+    "employer_site: field: _ or email the _ would _ _ the _ _ have": 2,
+    "employer_site: field: _ terms": 1,
+    "employer_site: field: _ the _ would _ _ the _ _ have": 2,
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: what is your _ range": 1,
     "lever: select: _ _ to _ _": 1,
+    "lever: text: _ _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: checkbox: what is your preferred work _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 1,
+    "workable: field: _": 2,
     "workable: field: _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _ _ _": 2,
-    "workable: field: resume _": 8,
+    "workable: field: resume _": 9,
     "workable: radio: have you been convicted of a felony": 1,
     "workable: text: how _ years of _ _ saas sales experience do you have": 1
   },
-  "sent_all_time": 363,
+  "sent_all_time": 367,
   "sent_by_system": {
-    "ashbyhq": 25,
+    "ashbyhq": 29,
     "employer_site": 10,
     "lever": 12
   },
-  "stop_shapes": {},
+  "stop_shapes": {
+    "employer_site: no_apply: _ _ | our _ | _ _ _ | _ jobs | view all | _": 1
+  },
   "stuck_at": {
     "captcha": {
       "nothing_to_press_on_captcha/filled": 37,
@@ -563,6 +586,7 @@
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 3,
       "nothing_to_press_on_form+no_apply/observed": 4,
+      "nothing_to_press_on_multi_page_wizard+no_apply/observed": 1,
       "nothing_to_press_on_success+no_apply/observed": 1,
       "unclear_button/observed": 7
     },
@@ -582,25 +606,29 @@
   "stuck_recently": {
     "days": 3,
     "where": {
+      "no_way_forward": {
+        "nothing_to_press_on_multi_page_wizard+no_apply/observed": 1
+      },
       "questions": {
         "nothing_to_press_on_form/filled": 2
       }
     }
   },
   "totals": {
-    "filled": 100,
-    "found": 543,
+    "filled": 112,
+    "found": 556,
     "interviews": 10,
     "rejections": 6,
     "replies": 22,
-    "sent": 47
+    "sent": 51
   },
   "waiting": {
     "asked_about": {
       "background_check": 1,
+      "contact": 2,
       "demographic_gender": 1,
-      "on_site": 3,
-      "other": 18,
+      "on_site": 2,
+      "other": 22,
       "travel": 1,
       "years_experience": 2
     },
@@ -612,7 +640,7 @@
       "left_captcha": 40,
       "left_error": 14,
       "left_going_in_circles": 3,
-      "left_no_way_forward": 64,
+      "left_no_way_forward": 65,
       "left_posting_closed": 2,
       "left_questions": 63,
       "left_sign_in": 10,
@@ -620,21 +648,21 @@
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
       "not_realistic": 90
     },
-    "failed": 21,
+    "failed": 22,
     "failed_because": {
       "ApplyError": 14,
       "TargetClosedError": 3,
       "browser_spending": 2,
-      "submit_would_not_click": 2
+      "submit_would_not_click": 3
     },
     "his_ok": {
       "judged-locally": 5,
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 20,
+    "needs_answer": 24,
     "oldest_days": 66,
-    "to_send": 0
+    "to_send": 3
   },
   "window_days": 30
 }
