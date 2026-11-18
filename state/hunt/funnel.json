@@ -490,23 +490,23 @@
       "sent": 4
     },
     "2026-11-15": {
-      "filled": 16,
-      "found": 17,
+      "filled": 10,
+      "found": 11,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     },
     "2026-11-17": {
-      "filled": 1,
-      "found": 1,
-      "interviews": 0,
+      "filled": 7,
+      "found": 7,
+      "interviews": 1,
       "rejections": 0,
-      "replies": 0,
+      "replies": 2,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-18T01:43:04Z",
+  "generated_at": "2026-11-18T02:11:22Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -521,11 +521,12 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
+    "workable: field: _": 1,
     "workable: field: _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _": 1,
-    "workable: field: resume _": 8,
-    "workable: radio: have you been convicted of a felony": 1,
-    "workable: text: how _ years of account management experience do you have": 1
+    "workable: field: _ _ _ _ _ _ _ _": 1,
+    "workable: field: resume _": 9,
+    "workable: radio: have you been convicted of a felony": 1
   },
   "sent_all_time": 363,
   "sent_by_system": {
@@ -587,9 +588,9 @@
   "totals": {
     "filled": 99,
     "found": 542,
-    "interviews": 9,
+    "interviews": 10,
     "rejections": 6,
-    "replies": 20,
+    "replies": 22,
     "sent": 47
   },
   "waiting": {
@@ -597,9 +598,9 @@
       "background_check": 1,
       "demographic_gender": 1,
       "on_site": 2,
-      "other": 17,
+      "other": 18,
       "travel": 1,
-      "years_experience": 2
+      "years_experience": 1
     },
     "closed": {
       "gone_on_ashbyhq": 6,
