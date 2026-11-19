@@ -132,6 +132,13 @@
     "owner_operator": "CRITICAL CARE SERVICES INC DBA, LIFE LINK III",
     "type": "PC12"
   },
+  "N3796C": {
+    "count": 1,
+    "first_seen": "2026-11-19",
+    "last_seen": "2026-11-19",
+    "owner_operator": "PRO AIRE CARGO & CONSULTING INC",
+    "type": "C402"
+  },
   "N3974L": {
     "count": 1,
     "first_seen": "2026-11-11",
@@ -222,6 +229,13 @@
     "last_seen": "2026-11-08",
     "owner_operator": "TWIN CITY CLOUD 7 INC",
     "type": "C82S"
+  },
+  "N741NG": {
+    "count": 1,
+    "first_seen": "2026-11-19",
+    "last_seen": "2026-11-19",
+    "owner_operator": "AIR METHODS LLC",
+    "type": "PC12"
   },
   "N759LV": {
     "count": 1,

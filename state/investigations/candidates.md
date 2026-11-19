@@ -1,10 +1,10 @@
 # Investigations candidates - SIOUX FALLS, SD
 
-Generated 2026-11-19T02:42:47Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
+Generated 2026-11-19T11:57:16Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
 
 - source `cms_partd`: ok, scanned 1742 rows, 35 flagged
 - source `fda_recalls`: ok, scanned 24 rows, 0 flagged
-- source `epa_echo`: FAILED: The read operation timed out
+- source `epa_echo`: ok, scanned 13292 rows, 6 flagged
 - source `cms_care_compare_nh`: ok, scanned 96 rows, 0 flagged
 - source `sky_watch`: ok, scanned 10 rows, 2 flagged
 - source `sf_food_safety`: ok, scanned 427 rows, 4 flagged
@@ -184,32 +184,62 @@ Generated 2026-11-19T02:42:47Z by the deterministic scanner. Each line is a QUES
 - evidence: {"npi": "1235195041", "specialty": "Family Practice", "antipsychotic_ge65_claims": 102, "antipsychotic_ge65_patients": 17, "claims_per_patient": 6.0, "avg_patient_age": 78.7, "address": "1115 E 20th St", "city": "Sioux Falls"}
 - next record: which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history
 
-## 36. N889SD  (sky_watch)
-- N889SD (C172), owner MEDARY AVIATION LLC: non-scheduled aircraft 3250ft near FSD (6nm) -- seen 2 times (repeat; first 2026-11-10)
-- evidence: {"tail": "N889SD", "type": "C172", "callsign": "N889SD", "owner_operator": "MEDARY AVIATION LLC", "squawk": "0151", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 3250.0, "distance_from_fsd_nm": 6.5, "times_seen": 2, "first_seen": "2026-11-10"}
+## 36. BEULAH LAND WATER-CHLORINATOR  (epa_echo)
+- BEULAH LAND WATER-CHLORINATOR: EPA violations, 2 formal action(s) [Violation Identified]
+- evidence: {"registry_id": "110069304871", "significant_noncomplier": false, "formal_actions": 2, "total_penalties": 0.0, "quarters_with_noncompliance": "11", "compliance": {"overall": "Violation Identified", "air_caa": "", "water_cwa": "", "waste_rcra": "", "drinking_sdwa": "Violation Identified"}, "industry": "", "last_inspection": "09/16/2025", "address": "1104 WEST 10TH STREET", "city": "SIOUX FALLS"}
+- next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
+
+## 37. LAKESIDE DAIRY  (epa_echo)
+- LAKESIDE DAIRY: EPA violations, 2 formal action(s)
+- evidence: {"registry_id": "110011682535", "significant_noncomplier": false, "formal_actions": 2, "total_penalties": 0.0, "quarters_with_noncompliance": null, "compliance": {"overall": "", "air_caa": "", "water_cwa": "", "waste_rcra": "", "drinking_sdwa": ""}, "industry": "", "last_inspection": null, "address": "1200 WEST RUSSELL STREET", "city": "SIOUX FALLS"}
+- next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
+
+## 38. UNITED PARCEL SERVICE - SIOUX FALLS GATEWAY  (epa_echo)
+- UNITED PARCEL SERVICE - SIOUX FALLS GATEWAY: EPA violations, 2 formal action(s) [No Violation Identified]
+- evidence: {"registry_id": "110071140252", "significant_noncomplier": false, "formal_actions": 2, "total_penalties": 0.0, "quarters_with_noncompliance": "0", "compliance": {"overall": "No Violation Identified", "air_caa": "", "water_cwa": "", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "", "last_inspection": null, "address": "3 WEATHER LANE", "city": "SIOUX FALLS"}
+- next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
+
+## 39. UNITED PARCEL SERVICE - SIOUX FALLS HUB  (epa_echo)
+- UNITED PARCEL SERVICE - SIOUX FALLS HUB: EPA violations, 2 formal action(s) [No Violation Identified]
+- evidence: {"registry_id": "110004949628", "significant_noncomplier": false, "formal_actions": 2, "total_penalties": 0.0, "quarters_with_noncompliance": "0", "compliance": {"overall": "No Violation Identified", "air_caa": "", "water_cwa": "", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "", "last_inspection": null, "address": "2700 NORTH WESTPORT AVE", "city": "SIOUX FALLS"}
+- next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
+
+## 40. CREW INC.  (epa_echo)
+- CREW INC.: EPA violations, 1 formal action(s)
+- evidence: {"registry_id": "110071845938", "significant_noncomplier": false, "formal_actions": 1, "total_penalties": 0.0, "quarters_with_noncompliance": null, "compliance": {"overall": "", "air_caa": "", "water_cwa": "", "waste_rcra": "", "drinking_sdwa": ""}, "industry": "", "last_inspection": "09/09/2024", "address": "3503 S NORTON AVENUE", "city": "SIOUX FALLS"}
+- next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
+
+## 41. SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD  (epa_echo)
+- SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD: EPA violations, 1 formal action(s) [No Violation Identified]
+- evidence: {"registry_id": "110000427823", "significant_noncomplier": false, "formal_actions": 1, "total_penalties": 0.0, "quarters_with_noncompliance": "2", "compliance": {"overall": "No Violation Identified", "air_caa": "No Violation Identified", "water_cwa": "No Violation Identified", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats", "last_inspection": "08/20/2026", "address": "1400 NORTH WEBER AVENUE", "city": "SIOUX FALLS"}
+- next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
+
+## 42. N741NG  (sky_watch)
+- N741NG (PC12), owner AIR METHODS LLC: non-scheduled aircraft on the ground at FSD (1nm)
+- evidence: {"tail": "N741NG", "type": "PC12", "callsign": "N741NG", "owner_operator": "AIR METHODS LLC", "squawk": "", "military": false, "foreign_registration": false, "on_ground": true, "altitude_ft": null, "distance_from_fsd_nm": 0.5, "times_seen": 1, "first_seen": "2026-11-19"}
 - next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
 
-## 37. N60MJ  (sky_watch)
-- N60MJ (B190), owner ALPINE AVIATION INC: non-scheduled aircraft 3725ft near FSD (7nm)
-- evidence: {"tail": "N60MJ", "type": "B190", "callsign": "AIP1587", "owner_operator": "ALPINE AVIATION INC", "squawk": "1475", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 3725.0, "distance_from_fsd_nm": 7.0, "times_seen": 1, "first_seen": "2026-11-19"}
+## 43. N3796C  (sky_watch)
+- N3796C (C402), owner PRO AIRE CARGO & CONSULTING INC: non-scheduled aircraft 1575ft near FSD (2nm)
+- evidence: {"tail": "N3796C", "type": "C402", "callsign": "WIS1576", "owner_operator": "PRO AIRE CARGO & CONSULTING INC", "squawk": "4261", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 1575.0, "distance_from_fsd_nm": 1.6, "times_seen": 1, "first_seen": "2026-11-19"}
 - next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
 
-## 38. PLAZA AZTECA  (sf_food_safety)
+## 44. PLAZA AZTECA  (sf_food_safety)
 - PLAZA AZTECA (3500 W 69TH ST): 9 critical food-safety violations across 2 inspections, including 'HANDWASHING LAVATORIES AND SUPPLIES' cited 4x -- a recurring, uncorrected hazard
 - evidence: {"site_no": 4610, "address": "3500 W 69TH ST", "site_type": "Restaurant", "critical_violations": 9, "inspections": 2, "recent_scores": [81.0], "recurring_critical_codes": [{"code": "37", "times": 4}, {"code": "12", "times": 3}, {"code": "44", "times": 2}], "worst_hazard": "HANDWASHING LAVATORIES AND SUPPLIES"}
 - next record: whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it
 
-## 39. CARNAVAL BRAZILIAN STEAKHOUSE  (sf_food_safety)
+## 45. CARNAVAL BRAZILIAN STEAKHOUSE  (sf_food_safety)
 - CARNAVAL BRAZILIAN STEAKHOUSE (2401 S CAROLYN AVE): 7 critical food-safety violations across 2 inspections, including 'HANDWASHING LAVATORIES AND SUPPLIES' cited 3x -- a recurring, uncorrected hazard
 - evidence: {"site_no": 5216, "address": "2401 S CAROLYN AVE", "site_type": "Food Facility", "critical_violations": 7, "inspections": 2, "recent_scores": [88.0, 87.0], "recurring_critical_codes": [{"code": "37", "times": 3}, {"code": "15", "times": 2}, {"code": "8", "times": 2}], "worst_hazard": "HANDWASHING LAVATORIES AND SUPPLIES"}
 - next record: whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it
 
-## 40. FUJI SUSHI & HIBACHI  (sf_food_safety)
+## 46. FUJI SUSHI & HIBACHI  (sf_food_safety)
 - FUJI SUSHI & HIBACHI (2801 W 41ST ST): 7 critical food-safety violations across 2 inspections, including 'CROSS CONTAMINATION' cited 3x -- a recurring, uncorrected hazard
 - evidence: {"site_no": 4082, "address": "2801 W 41ST ST", "site_type": "Restaurant", "critical_violations": 7, "inspections": 2, "recent_scores": [80.0, 82.0], "recurring_critical_codes": [{"code": "8", "times": 3}, {"code": "15", "times": 2}], "worst_hazard": "CROSS CONTAMINATION"}
 - next record: whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it
 
-## 41. HOOK AND LADDER  (sf_food_safety)
+## 47. HOOK AND LADDER  (sf_food_safety)
 - HOOK AND LADDER (323 S WHITEWOOD CIR): 6 critical food-safety violations across 2 inspections, including 'HANDWASHING LAVATORIES AND SUPPLIES' cited 3x -- a recurring, uncorrected hazard
 - evidence: {"site_no": 4994, "address": "323 S WHITEWOOD CIR", "site_type": "Restaurant", "critical_violations": 6, "inspections": 2, "recent_scores": [84.0, 90.0], "recurring_critical_codes": [{"code": "37", "times": 3}], "worst_hazard": "HANDWASHING LAVATORIES AND SUPPLIES"}
 - next record: whether the health dept closed or placarded it (if so, DISQUALIFIED -- the regulator acted); otherwise the full inspection history and any illness complaints tied to it
