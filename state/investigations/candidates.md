@@ -1,12 +1,12 @@
 # Investigations candidates - SIOUX FALLS, SD
 
-Generated 2026-11-19T11:57:16Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
+Generated 2026-11-19T20:53:00Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
 
 - source `cms_partd`: ok, scanned 1742 rows, 35 flagged
 - source `fda_recalls`: ok, scanned 24 rows, 0 flagged
 - source `epa_echo`: ok, scanned 13292 rows, 6 flagged
 - source `cms_care_compare_nh`: ok, scanned 96 rows, 0 flagged
-- source `sky_watch`: ok, scanned 10 rows, 2 flagged
+- source `sky_watch`: ok, scanned 20 rows, 2 flagged
 - source `sf_food_safety`: ok, scanned 427 rows, 4 flagged
 
 ## 1. Welch, David  (cms_partd_opioids)
@@ -214,14 +214,14 @@ Generated 2026-11-19T11:57:16Z by the deterministic scanner. Each line is a QUES
 - evidence: {"registry_id": "110000427823", "significant_noncomplier": false, "formal_actions": 1, "total_penalties": 0.0, "quarters_with_noncompliance": "2", "compliance": {"overall": "No Violation Identified", "air_caa": "No Violation Identified", "water_cwa": "No Violation Identified", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats", "last_inspection": "08/20/2026", "address": "1400 NORTH WEBER AVENUE", "city": "SIOUX FALLS"}
 - next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
 
-## 42. N741NG  (sky_watch)
-- N741NG (PC12), owner AIR METHODS LLC: non-scheduled aircraft on the ground at FSD (1nm)
-- evidence: {"tail": "N741NG", "type": "PC12", "callsign": "N741NG", "owner_operator": "AIR METHODS LLC", "squawk": "", "military": false, "foreign_registration": false, "on_ground": true, "altitude_ft": null, "distance_from_fsd_nm": 0.5, "times_seen": 1, "first_seen": "2026-11-19"}
+## 42. N5437F  (sky_watch)
+- N5437F (P28A), owner LEGACY AVIATION LLC: non-scheduled aircraft 3300ft near FSD (1nm)
+- evidence: {"tail": "N5437F", "type": "P28A", "callsign": "N5437F", "owner_operator": "LEGACY AVIATION LLC", "squawk": "0137", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 3300.0, "distance_from_fsd_nm": 1.2, "times_seen": 1, "first_seen": "2026-11-19"}
 - next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
 
-## 43. N3796C  (sky_watch)
-- N3796C (C402), owner PRO AIRE CARGO & CONSULTING INC: non-scheduled aircraft 1575ft near FSD (2nm)
-- evidence: {"tail": "N3796C", "type": "C402", "callsign": "WIS1576", "owner_operator": "PRO AIRE CARGO & CONSULTING INC", "squawk": "4261", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 1575.0, "distance_from_fsd_nm": 1.6, "times_seen": 1, "first_seen": "2026-11-19"}
+## 43. N855A  (sky_watch)
+- N855A (G280), owner STONEX GROUP INC: non-scheduled aircraft on the ground at FSD (1nm)
+- evidence: {"tail": "N855A", "type": "G280", "callsign": "N855A", "owner_operator": "STONEX GROUP INC", "squawk": "1624", "military": false, "foreign_registration": false, "on_ground": true, "altitude_ft": null, "distance_from_fsd_nm": 0.5, "times_seen": 1, "first_seen": "2026-11-19"}
 - next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
 
 ## 44. PLAZA AZTECA  (sf_food_safety)

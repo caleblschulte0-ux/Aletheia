@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-19T11:57:16Z",
+  "generated_at": "2026-11-19T20:53:00Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,7 +30,7 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 10,
+      "rows_scanned": 20,
       "flagged": 2
     },
     {
@@ -907,19 +907,19 @@
     {
       "check": "sky_watch",
       "kind": "context",
-      "subject": "N741NG",
-      "summary": "N741NG (PC12), owner AIR METHODS LLC: non-scheduled aircraft on the ground at FSD (1nm)",
+      "subject": "N5437F",
+      "summary": "N5437F (P28A), owner LEGACY AVIATION LLC: non-scheduled aircraft 3300ft near FSD (1nm)",
       "evidence": {
-        "tail": "N741NG",
-        "type": "PC12",
-        "callsign": "N741NG",
-        "owner_operator": "AIR METHODS LLC",
-        "squawk": "",
+        "tail": "N5437F",
+        "type": "P28A",
+        "callsign": "N5437F",
+        "owner_operator": "LEGACY AVIATION LLC",
+        "squawk": "0137",
         "military": false,
         "foreign_registration": false,
-        "on_ground": true,
-        "altitude_ft": null,
-        "distance_from_fsd_nm": 0.5,
+        "on_ground": false,
+        "altitude_ft": 3300.0,
+        "distance_from_fsd_nm": 1.2,
         "times_seen": 1,
         "first_seen": "2026-11-19"
       },
@@ -930,19 +930,19 @@
     {
       "check": "sky_watch",
       "kind": "context",
-      "subject": "N3796C",
-      "summary": "N3796C (C402), owner PRO AIRE CARGO & CONSULTING INC: non-scheduled aircraft 1575ft near FSD (2nm)",
+      "subject": "N855A",
+      "summary": "N855A (G280), owner STONEX GROUP INC: non-scheduled aircraft on the ground at FSD (1nm)",
       "evidence": {
-        "tail": "N3796C",
-        "type": "C402",
-        "callsign": "WIS1576",
-        "owner_operator": "PRO AIRE CARGO & CONSULTING INC",
-        "squawk": "4261",
+        "tail": "N855A",
+        "type": "G280",
+        "callsign": "N855A",
+        "owner_operator": "STONEX GROUP INC",
+        "squawk": "1624",
         "military": false,
         "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 1575.0,
-        "distance_from_fsd_nm": 1.6,
+        "on_ground": true,
+        "altitude_ft": null,
+        "distance_from_fsd_nm": 0.5,
         "times_seen": 1,
         "first_seen": "2026-11-19"
       },
