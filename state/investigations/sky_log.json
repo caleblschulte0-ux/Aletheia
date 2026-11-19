@@ -181,6 +181,13 @@
     "owner_operator": "AIR AMERICA LLC",
     "type": "C150"
   },
+  "N60MJ": {
+    "count": 1,
+    "first_seen": "2026-11-19",
+    "last_seen": "2026-11-19",
+    "owner_operator": "ALPINE AVIATION INC",
+    "type": "B190"
+  },
   "N62SD": {
     "count": 1,
     "first_seen": "2026-11-10",
@@ -294,9 +301,9 @@
     "type": "MU2"
   },
   "N889SD": {
-    "count": 1,
+    "count": 2,
     "first_seen": "2026-11-10",
-    "last_seen": "2026-11-10",
+    "last_seen": "2026-11-19",
     "owner_operator": "MEDARY AVIATION LLC",
     "type": "C172"
   },
