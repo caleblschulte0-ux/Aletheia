@@ -41,6 +41,13 @@
     "owner_operator": "MEDARY AVIATION LLC",
     "type": "C172"
   },
+  "N127AR": {
+    "count": 1,
+    "first_seen": "2026-11-20",
+    "last_seen": "2026-11-20",
+    "owner_operator": "AIRCRAFT UNLIMITED INC",
+    "type": "C208"
+  },
   "N127GA": {
     "count": 2,
     "first_seen": "2026-11-17",
