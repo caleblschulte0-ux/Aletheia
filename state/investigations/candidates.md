@@ -1,12 +1,12 @@
 # Investigations candidates - SIOUX FALLS, SD
 
-Generated 2026-11-20T11:58:05Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
+Generated 2026-11-20T20:36:39Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
 
 - source `cms_partd`: ok, scanned 1742 rows, 35 flagged
 - source `fda_recalls`: ok, scanned 24 rows, 0 flagged
 - source `epa_echo`: ok, scanned 13292 rows, 6 flagged
 - source `cms_care_compare_nh`: ok, scanned 96 rows, 0 flagged
-- source `sky_watch`: ok, scanned 9 rows, 1 flagged
+- source `sky_watch`: ok, scanned 19 rows, 1 flagged
 - source `sf_food_safety`: ok, scanned 427 rows, 4 flagged
 
 ## 1. Welch, David  (cms_partd_opioids)
@@ -214,9 +214,9 @@ Generated 2026-11-20T11:58:05Z by the deterministic scanner. Each line is a QUES
 - evidence: {"registry_id": "110000427823", "significant_noncomplier": false, "formal_actions": 1, "total_penalties": 0.0, "quarters_with_noncompliance": "2", "compliance": {"overall": "No Violation Identified", "air_caa": "No Violation Identified", "water_cwa": "No Violation Identified", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats", "last_inspection": "08/20/2026", "address": "1400 NORTH WEBER AVENUE", "city": "SIOUX FALLS"}
 - next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
 
-## 42. N185MV  (sky_watch)
-- N185MV (BE20), owner SOUTHWEST AVIATION INC DIV, MIDWEST AVIATION: non-scheduled aircraft 1825ft near FSD (2nm) -- seen 2 times (repeat; first 2026-11-09)
-- evidence: {"tail": "N185MV", "type": "BE20", "callsign": "MWT185", "owner_operator": "SOUTHWEST AVIATION INC DIV, MIDWEST AVIATION", "squawk": "0177", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 1825.0, "distance_from_fsd_nm": 1.5, "times_seen": 2, "first_seen": "2026-11-09"}
+## 42. 00-0184  (sky_watch)
+- 00-0184 (C17): military / government aircraft
+- evidence: {"tail": "00-0184", "type": "C17", "callsign": "PITT24", "owner_operator": "", "squawk": "0563", "military": true, "foreign_registration": true, "on_ground": false, "altitude_ft": 37000.0, "distance_from_fsd_nm": 21.1, "times_seen": 1, "first_seen": "2026-11-20"}
 - next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
 
 ## 43. PLAZA AZTECA  (sf_food_safety)

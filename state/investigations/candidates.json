@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-20T11:58:05Z",
+  "generated_at": "2026-11-20T20:36:39Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,7 +30,7 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 9,
+      "rows_scanned": 19,
       "flagged": 1
     },
     {
@@ -907,21 +907,21 @@
     {
       "check": "sky_watch",
       "kind": "anomaly",
-      "subject": "N185MV",
-      "summary": "N185MV (BE20), owner SOUTHWEST AVIATION INC DIV, MIDWEST AVIATION: non-scheduled aircraft 1825ft near FSD (2nm) -- seen 2 times (repeat; first 2026-11-09)",
+      "subject": "00-0184",
+      "summary": "00-0184 (C17): military / government aircraft",
       "evidence": {
-        "tail": "N185MV",
-        "type": "BE20",
-        "callsign": "MWT185",
-        "owner_operator": "SOUTHWEST AVIATION INC DIV, MIDWEST AVIATION",
-        "squawk": "0177",
-        "military": false,
-        "foreign_registration": false,
+        "tail": "00-0184",
+        "type": "C17",
+        "callsign": "PITT24",
+        "owner_operator": "",
+        "squawk": "0563",
+        "military": true,
+        "foreign_registration": true,
         "on_ground": false,
-        "altitude_ft": 1825.0,
-        "distance_from_fsd_nm": 1.5,
-        "times_seen": 2,
-        "first_seen": "2026-11-09"
+        "altitude_ft": 37000.0,
+        "distance_from_fsd_nm": 21.1,
+        "times_seen": 1,
+        "first_seen": "2026-11-20"
       },
       "source": "ADS-B (adsb.fi) + FAA registry",
       "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
