@@ -308,9 +308,9 @@
     "type": "C172"
   },
   "N8214Y": {
-    "count": 1,
+    "count": 2,
     "first_seen": "2026-11-13",
-    "last_seen": "2026-11-13",
+    "last_seen": "2026-11-21",
     "owner_operator": "REGISTRATION PENDING",
     "type": "P28A"
   },
@@ -322,9 +322,9 @@
     "type": "C56X"
   },
   "N855A": {
-    "count": 1,
+    "count": 2,
     "first_seen": "2026-11-19",
-    "last_seen": "2026-11-19",
+    "last_seen": "2026-11-21",
     "owner_operator": "STONEX GROUP INC",
     "type": "G280"
   },
