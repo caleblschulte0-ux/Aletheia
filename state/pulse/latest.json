@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T19:47:31Z",
+  "generated_at": "2026-11-23T07:49:33Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,6 +11,21 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
+          "sha": "e919841e6e6b",
+          "date": "2026-11-23T01:53:19Z",
+          "message": "investigate: 2026-11-23T01:53Z"
+        },
+        {
+          "sha": "afd5cea1f28e",
+          "date": "2026-11-22T19:54:00Z",
+          "message": "investigate: 2026-11-22T19:54Z"
+        },
+        {
+          "sha": "2116db76a948",
+          "date": "2026-11-22T19:47:51Z",
+          "message": "pulse: 2026-11-22T19:47Z"
+        },
+        {
           "sha": "0da5c1016e4e",
           "date": "2026-11-22T18:10:51Z",
           "message": "brief: 2026-11-22"
@@ -19,35 +34,20 @@
           "sha": "d92a9c0c94c0",
           "date": "2026-11-22T11:44:57Z",
           "message": "investigate: 2026-11-22T11:44Z"
-        },
-        {
-          "sha": "d68c08ee485a",
-          "date": "2026-11-22T07:00:26Z",
-          "message": "pulse: 2026-11-22T07:00Z"
-        },
-        {
-          "sha": "dc23e402e29f",
-          "date": "2026-11-22T01:27:54Z",
-          "message": "investigate: 2026-11-22T01:27Z"
-        },
-        {
-          "sha": "0fafb5b3218b",
-          "date": "2026-11-21T19:35:16Z",
-          "message": "investigate: 2026-11-21T19:35Z"
         }
       ],
       "commit": {
-        "sha": "0da5c1016e4e",
-        "date": "2026-11-22T18:10:51Z",
-        "message": "brief: 2026-11-22"
+        "sha": "e919841e6e6b",
+        "date": "2026-11-23T01:53:19Z",
+        "message": "investigate: 2026-11-23T01:53Z"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-22T07:00:31Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/44996190257"
+          "updated_at": "2026-11-22T19:47:54Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/45062727781"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 21055
+          "bytes": 20992
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "a40c775b9024",
-          "date": "2026-11-22T19:33:30Z",
-          "message": "watchdog: chatgpt task verdicts 20261122 [skip ci]"
+          "sha": "67f1806b15ad",
+          "date": "2026-11-23T07:48:14Z",
+          "message": "claim: mailbox verdicts 2026-11-23T07:48Z [skip ci]"
         },
         {
-          "sha": "ae99461ef0e1",
-          "date": "2026-11-22T18:58:43Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "39568359b90b",
+          "date": "2026-11-23T07:29:18Z",
+          "message": "rewrites: the mailbox asks today's question, and only one a rewrite can answer (doctor aaeb12de3ebd) (#770)"
         },
         {
-          "sha": "c5b94a7fde90",
-          "date": "2026-11-22T18:48:25Z",
-          "message": "claim: mailbox verdicts 2026-11-22T18:48Z [skip ci]"
+          "sha": "d368533d1285",
+          "date": "2026-11-23T06:52:08Z",
+          "message": "claim: mailbox verdicts 2026-11-23T06:52Z [skip ci]"
         },
         {
-          "sha": "c8c0436cfc9a",
-          "date": "2026-11-22T18:38:31Z",
-          "message": "story forge: new real-data stories [skip ci]"
+          "sha": "bbcd123dd984",
+          "date": "2026-11-23T06:11:13Z",
+          "message": "claim: mailbox verdicts 2026-11-23T06:11Z [skip ci]"
         },
         {
-          "sha": "e1268e59d295",
-          "date": "2026-11-22T18:27:50Z",
-          "message": "third: analytics [skip ci]"
+          "sha": "7b0d69baa5cc",
+          "date": "2026-11-23T05:30:59Z",
+          "message": "doctor: evidence pack + backlog 2026-11-23 [skip ci]"
         }
       ],
       "commit": {
-        "sha": "a40c775b9024",
-        "date": "2026-11-22T19:33:30Z",
-        "message": "watchdog: chatgpt task verdicts 20261122 [skip ci]"
+        "sha": "67f1806b15ad",
+        "date": "2026-11-23T07:48:14Z",
+        "message": "claim: mailbox verdicts 2026-11-23T07:48Z [skip ci]"
       },
       "vitals": [
         {
@@ -129,20 +129,20 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-22T17:22:27Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45049052283"
+          "updated_at": "2026-11-23T07:29:39Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45131453721"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-22T14:46:04Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45034573096"
+          "updated_at": "2026-11-22T20:46:18Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45068289747"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-22T18:38:36Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45051260162"
+          "updated_at": "2026-11-23T06:12:41Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45121901836"
         },
         "third.yml": {
           "status": "completed",
@@ -154,21 +154,21 @@
         "explainer.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-11-22T18:58:49Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45030485342",
+          "updated_at": "2026-11-23T01:17:17Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45077744886",
           "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830, actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/setup-py"
         },
         "retro.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-22T06:54:37Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/44995812802"
+          "updated_at": "2026-11-23T07:43:59Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45133212955"
         },
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-22T13:16:41Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45026604237"
+          "updated_at": "2026-11-23T05:31:03Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45118248927"
         }
       },
       "state_files": {
@@ -190,7 +190,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 5671895
+          "bytes": 5673135
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -404,7 +404,7 @@
           "text": "Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06)"
         },
         "last_progress_at": "2026-08-06T02:51:23Z",
-        "days_quiet": 108,
+        "days_quiet": 109,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -436,7 +436,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-11-22T18:10:51Z",
+        "last_progress_at": "2026-11-23T01:53:19Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
@@ -522,7 +522,7 @@
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
         "last_progress_at": null,
-        "days_quiet": 18,
+        "days_quiet": 19,
         "quiet_at_least": true,
         "commits_7d": 0,
         "open_prs": [
