@@ -1,4 +1,4 @@
-# ☀️ Fleet brief — 2026-11-22
+# ☀️ Fleet brief — 2026-11-23
 
 **1 fault(s) need eyes:** `Shorts-pipeline`
 
@@ -12,21 +12,21 @@ Schwab trader: review and merge pull request #16, watchdog: name which of the tw
 - **Waiting:** 24 stopped on a question only you can answer; 8 wait for your own OK (part-time, contract or judged by her own model); 22 failed to send.
 
 ## Projects
-- **Barkly** — 0/8 steps · last moved 59 days ago · Thea next: Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push · yours next: Turn on GitHub Pages for Money_Machine (Settings, Pages, Source: GitHub Actions) so the playtest link goes live · 1 open builder pull request
-- **Holdco platform** — 0/5 steps · last moved 108 days ago · Thea next: Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06) · yours next: Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to) · 1 open builder pull request
+- **Barkly** — 0/8 steps · last moved 60 days ago · Thea next: Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push · yours next: Turn on GitHub Pages for Money_Machine (Settings, Pages, Source: GitHub Actions) so the playtest link goes live · 1 open builder pull request
+- **Holdco platform** — 0/5 steps · last moved 109 days ago · Thea next: Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06) · yours next: Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to) · 1 open builder pull request
 - **Instagram Auto Post Setup** — 0/4 steps · moved today · yours next: Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business.
-- **Open Range demo films** — 0/4 steps · last moved 59 days ago · Thea next: Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open · 1 open builder pull request
-- **Schwab trader** — 0/5 steps · no real work in at least 18 days (only machine commits) · Thea next: Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself · yours next: Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it · 1 open builder pull request
+- **Open Range demo films** — 0/4 steps · last moved 60 days ago · Thea next: Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open · 1 open builder pull request
+- **Schwab trader** — 0/5 steps · no real work in at least 19 days (only machine commits) · Thea next: Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself · yours next: Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it · 1 open builder pull request
 
 ## Aletheia — OPERATIONAL
-- last commit `dc23e402e29f`: investigate: 2026-11-22T01:27Z
+- last commit `e919841e6e6b`: investigate: 2026-11-23T01:53Z
 
 ## Shorts-pipeline — FAULT
-- trending posted 576 · explainer posted 418 · third posted 1,526 · curiosity posted 1
-- last commit `746bf88351ab`: claim: mailbox verdicts 2026-11-22T06:47Z [skip ci]
+- trending posted 576 · explainer posted 420 · third posted 1,541 · curiosity posted 1
+- last commit `67f1806b15ad`: claim: mailbox verdicts 2026-11-23T07:48Z [skip ci]
 
 ## schwab-trader — OPERATIONAL
-- last commit `8bdfcbcf53d8`: analyst: weekly review [skip ci]
+- last commit `0e264345b0bd`: backtest: weekly refresh [skip ci]
 
 ## Money_Machine — NO TELEMETRY
 - last commit `53c6507f6afe`: Initial commit
@@ -48,4 +48,4 @@ Schwab trader: review and merge pull request #16, watchdog: name which of the tw
 Rule with `python -m aletheia.suggestions list --state new`.
 
 ---
-pulse `2026-11-22T07:00:01Z` · registry rev 7 · composed by `aletheia.brief`
+pulse `2026-11-23T07:49:33Z` · registry rev 7 · composed by `aletheia.brief`
