@@ -161,9 +161,9 @@
     "type": "C402"
   },
   "N3974L": {
-    "count": 1,
+    "count": 2,
     "first_seen": "2026-11-11",
-    "last_seen": "2026-11-11",
+    "last_seen": "2026-11-24",
     "owner_operator": "LAKE AREA TECHNICAL COLLEGE",
     "type": "C172"
   },
@@ -327,6 +327,13 @@
     "last_seen": "2026-11-13",
     "owner_operator": "JET AIR INC, SCARLAS SIDE LLC, SHEPJET LLC, JJR AIR LLC, HODGE A",
     "type": "C56X"
+  },
+  "N8363E": {
+    "count": 1,
+    "first_seen": "2026-11-24",
+    "last_seen": "2026-11-24",
+    "owner_operator": "ELLEFSON AIRCRAFT LLC",
+    "type": "P28A"
   },
   "N855A": {
     "count": 2,

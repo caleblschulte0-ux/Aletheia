@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-23T13:20:58Z",
+  "generated_at": "2026-11-24T02:27:19Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,8 +30,8 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 10,
-      "flagged": 1
+      "rows_scanned": 23,
+      "flagged": 2
     },
     {
       "check": "sf_food_safety",
@@ -40,7 +40,7 @@
       "flagged": 4
     }
   ],
-  "candidate_count": 46,
+  "candidate_count": 47,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -906,22 +906,45 @@
     },
     {
       "check": "sky_watch",
-      "kind": "context",
-      "subject": "N273DV",
-      "summary": "N273DV (SR22), owner D&K LLC: non-scheduled aircraft 5525ft near FSD (11nm)",
+      "kind": "anomaly",
+      "subject": "N3974L",
+      "summary": "N3974L (C172), owner LAKE AREA TECHNICAL COLLEGE: non-scheduled aircraft 875ft near FSD (1nm) -- seen 2 times (repeat; first 2026-11-11)",
       "evidence": {
-        "tail": "N273DV",
-        "type": "SR22",
-        "callsign": "N273DV",
-        "owner_operator": "D&K LLC",
-        "squawk": "3642",
+        "tail": "N3974L",
+        "type": "C172",
+        "callsign": "N3974L",
+        "owner_operator": "LAKE AREA TECHNICAL COLLEGE",
+        "squawk": "0155",
         "military": false,
         "foreign_registration": false,
         "on_ground": false,
-        "altitude_ft": 5525.0,
-        "distance_from_fsd_nm": 11.3,
+        "altitude_ft": 875.0,
+        "distance_from_fsd_nm": 0.7,
+        "times_seen": 2,
+        "first_seen": "2026-11-11"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N8363E",
+      "summary": "N8363E (P28A), owner ELLEFSON AIRCRAFT LLC: non-scheduled aircraft 2100ft near FSD (11nm)",
+      "evidence": {
+        "tail": "N8363E",
+        "type": "P28A",
+        "callsign": "N8363E",
+        "owner_operator": "ELLEFSON AIRCRAFT LLC",
+        "squawk": "1200",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": false,
+        "altitude_ft": 2100.0,
+        "distance_from_fsd_nm": 10.7,
         "times_seen": 1,
-        "first_seen": "2026-11-23"
+        "first_seen": "2026-11-24"
       },
       "source": "ADS-B (adsb.fi) + FAA registry",
       "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
