@@ -48,6 +48,13 @@
     "owner_operator": "MEDARY AVIATION LLC",
     "type": "C172"
   },
+  "N1150M": {
+    "count": 1,
+    "first_seen": "2026-11-24",
+    "last_seen": "2026-11-24",
+    "owner_operator": "BAKKO AVIATION LLC",
+    "type": "C25C"
+  },
   "N127AR": {
     "count": 1,
     "first_seen": "2026-11-20",
