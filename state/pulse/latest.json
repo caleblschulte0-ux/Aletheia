@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-24T22:32:36Z",
+  "generated_at": "2026-11-25T08:45:12Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -10,6 +10,16 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "bbec7b376a9f",
+          "date": "2026-11-24T23:59:32Z",
+          "message": "investigate: 2026-11-24T23:59Z"
+        },
+        {
+          "sha": "32526afd638a",
+          "date": "2026-11-24T22:32:58Z",
+          "message": "pulse: 2026-11-24T22:32Z"
+        },
         {
           "sha": "ff36cad9fc35",
           "date": "2026-11-24T20:57:56Z",
@@ -24,30 +34,20 @@
           "sha": "f1b6038eb471",
           "date": "2026-11-24T10:01:44Z",
           "message": "pulse: 2026-11-24T10:01Z"
-        },
-        {
-          "sha": "23ff9af44629",
-          "date": "2026-11-24T02:27:19Z",
-          "message": "investigate: 2026-11-24T02:27Z"
-        },
-        {
-          "sha": "5968b9eebd12",
-          "date": "2026-11-23T23:59:35Z",
-          "message": "pulse: 2026-11-23T23:59Z"
         }
       ],
       "commit": {
-        "sha": "ff36cad9fc35",
-        "date": "2026-11-24T20:57:56Z",
-        "message": "brief: 2026-11-24"
+        "sha": "bbec7b376a9f",
+        "date": "2026-11-24T23:59:32Z",
+        "message": "investigate: 2026-11-24T23:59Z"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-24T10:01:50Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/45370677039"
+          "updated_at": "2026-11-24T22:33:02Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/45501885028"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 21012
+          "bytes": 20983
         }
       },
       "health": "green"
@@ -71,40 +71,40 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "bb0b8cc37820",
-          "date": "2026-11-24T22:23:01Z",
-          "message": "watchdog: chatgpt task verdicts 20261124 [skip ci]"
+          "sha": "12e353b0fb02",
+          "date": "2026-11-25T07:47:47Z",
+          "message": "claim: mailbox verdicts 2026-11-25T07:47Z [skip ci]"
         },
         {
-          "sha": "3d3089a8fbf6",
-          "date": "2026-11-24T21:54:02Z",
-          "message": "sports: 2026-11-24 posted log + verdicts [skip ci]"
+          "sha": "b2fa2ca822f3",
+          "date": "2026-11-25T06:48:11Z",
+          "message": "claim: mailbox verdicts 2026-11-25T06:48Z [skip ci]"
         },
         {
-          "sha": "fc4802b15a25",
-          "date": "2026-11-24T21:48:43Z",
-          "message": "claim: mailbox verdicts 2026-11-24T21:48Z [skip ci]"
+          "sha": "771ea907a4db",
+          "date": "2026-11-25T05:52:33Z",
+          "message": "Explainer: a repeat is retitled, not parked (#779)"
         },
         {
-          "sha": "1292757b3598",
-          "date": "2026-11-24T21:07:31Z",
-          "message": "third: analytics [skip ci]"
+          "sha": "577f8e8be9b1",
+          "date": "2026-11-25T05:48:07Z",
+          "message": "claim: mailbox verdicts 2026-11-25T05:48Z [skip ci]"
         },
         {
-          "sha": "a917814255a0",
-          "date": "2026-11-24T21:07:23Z",
-          "message": "third: update posted log + analytics [skip ci]"
+          "sha": "629bb194cc68",
+          "date": "2026-11-25T05:31:00Z",
+          "message": "doctor: evidence pack + backlog 2026-11-25 [skip ci]"
         }
       ],
       "commit": {
-        "sha": "bb0b8cc37820",
-        "date": "2026-11-24T22:23:01Z",
-        "message": "watchdog: chatgpt task verdicts 20261124 [skip ci]"
+        "sha": "12e353b0fb02",
+        "date": "2026-11-25T07:47:47Z",
+        "message": "claim: mailbox verdicts 2026-11-25T07:47Z [skip ci]"
       },
       "vitals": [
         {
           "label": "trending posted",
-          "value": 576
+          "value": 579
         },
         {
           "label": "explainer posted",
@@ -129,20 +129,20 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-24T20:19:52Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45479602557"
+          "updated_at": "2026-11-25T07:45:13Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45570557850"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-24T14:46:52Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45417844808"
+          "updated_at": "2026-11-24T23:33:48Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45510987003"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-24T17:50:57Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45452224276"
+          "updated_at": "2026-11-25T06:02:09Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45555831062"
         },
         "third.yml": {
           "status": "completed",
@@ -154,27 +154,27 @@
         "explainer.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-11-24T17:57:32Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45449434913",
+          "updated_at": "2026-11-25T02:51:41Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45525475295",
           "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830, actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/setup-py"
         },
         "retro.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-24T09:57:44Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45370102076"
+          "updated_at": "2026-11-25T08:40:24Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45578311021"
         },
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-24T15:47:46Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45429568105"
+          "updated_at": "2026-11-25T05:31:04Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/45554091260"
         }
       },
       "state_files": {
         "state/posted_log.json": {
           "exists": true,
-          "bytes": 269171
+          "bytes": 271714
         },
         "state/explainer_posted_log.json": {
           "exists": true,
@@ -190,7 +190,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 5673135
+          "bytes": 5698661
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -205,6 +205,11 @@
       "status": "active",
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
+        {
+          "sha": "130d5f747d11",
+          "date": "2026-11-24T23:00:43Z",
+          "message": "bot: daily snapshot [skip ci]"
+        },
         {
           "sha": "cf830fd8589d",
           "date": "2026-11-24T00:48:31Z",
@@ -224,16 +229,11 @@
           "sha": "1b201784deb6",
           "date": "2026-11-20T21:18:04Z",
           "message": "monitor: intraday alert [skip ci]"
-        },
-        {
-          "sha": "fd645d0e055f",
-          "date": "2026-11-20T21:03:08Z",
-          "message": "bot: daily snapshot [skip ci]"
         }
       ],
       "commit": {
-        "sha": "cf830fd8589d",
-        "date": "2026-11-24T00:48:31Z",
+        "sha": "130d5f747d11",
+        "date": "2026-11-24T23:00:43Z",
         "message": "bot: daily snapshot [skip ci]"
       },
       "vitals": [],
@@ -254,8 +254,8 @@
         "watchdog.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-24T05:26:49Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/45333355086"
+          "updated_at": "2026-11-25T04:28:29Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/45546993071"
         }
       },
       "state_files": {
@@ -265,11 +265,11 @@
         },
         "signals/sim_account.json": {
           "exists": true,
-          "bytes": 16812
+          "bytes": 16857
         },
         "signals/performance.json": {
           "exists": true,
-          "bytes": 3959
+          "bytes": 4005
         },
         "reports/track_record.md": {
           "exists": true,
@@ -404,7 +404,7 @@
           "text": "Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06)"
         },
         "last_progress_at": "2026-08-06T02:51:23Z",
-        "days_quiet": 110,
+        "days_quiet": 111,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -436,7 +436,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-11-24T20:57:56Z",
+        "last_progress_at": "2026-11-24T23:59:32Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
