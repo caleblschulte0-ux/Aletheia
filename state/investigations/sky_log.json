@@ -48,6 +48,13 @@
     "owner_operator": "MEDARY AVIATION LLC",
     "type": "C172"
   },
+  "N1129": {
+    "count": 1,
+    "first_seen": "2026-11-25",
+    "last_seen": "2026-11-25",
+    "owner_operator": "HOUGHTON JOHN D, HOUGHTON KRISTIN M",
+    "type": "PA18"
+  },
   "N1150M": {
     "count": 1,
     "first_seen": "2026-11-24",
@@ -180,6 +187,13 @@
     "last_seen": "2026-11-09",
     "owner_operator": "FIRST PREMIER CORP",
     "type": "F900"
+  },
+  "N42GG": {
+    "count": 1,
+    "first_seen": "2026-11-25",
+    "last_seen": "2026-11-25",
+    "owner_operator": "HOFFJETPROP LLC",
+    "type": "EVOT"
   },
   "N508FR": {
     "count": 1,
