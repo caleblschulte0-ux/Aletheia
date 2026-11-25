@@ -1,12 +1,12 @@
 # Investigations candidates - SIOUX FALLS, SD
 
-Generated 2026-11-24T23:59:31Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
+Generated 2026-11-25T08:55:56Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
 
 - source `cms_partd`: ok, scanned 1742 rows, 35 flagged
 - source `fda_recalls`: ok, scanned 24 rows, 0 flagged
 - source `epa_echo`: ok, scanned 13294 rows, 6 flagged
 - source `cms_care_compare_nh`: ok, scanned 96 rows, 0 flagged
-- source `sky_watch`: ok, scanned 14 rows, 0 flagged
+- source `sky_watch`: ok, scanned 3 rows, 0 flagged
 - source `sf_food_safety`: ok, scanned 427 rows, 4 flagged
 
 ## 1. Welch, David  (cms_partd_opioids)
