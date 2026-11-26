@@ -146,6 +146,13 @@
     "owner_operator": "BLINK AVIATION LLC",
     "type": "PC12"
   },
+  "N28MB": {
+    "count": 1,
+    "first_seen": "2026-11-26",
+    "last_seen": "2026-11-26",
+    "owner_operator": "MOCKINGBIRD FLYING CLUB INC",
+    "type": "P28A"
+  },
   "N28NS": {
     "count": 1,
     "first_seen": "2026-11-13",
