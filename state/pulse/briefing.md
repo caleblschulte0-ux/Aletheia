@@ -1,45 +1,45 @@
 # Fleet briefing
 
-Generated 2026-11-26T21:40:12Z from fleet registry rev 7 via GitHubSource.
+Generated 2026-11-27T08:44:18Z from fleet registry rev 7 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `3d6fb780351a` at 2026-11-26T19:56:51Z: brief: 2026-11-26
+Last commit `5b4c85bfdeef` at 2026-11-27T01:50:39Z: investigate: 2026-11-27T01:50Z
 
 Watched workflows:
-- `pulse.yml`: success at 2026-11-26T08:31:04Z
+- `pulse.yml`: success at 2026-11-26T21:40:38Z
 - `ci.yml`: success at 2026-11-11T04:54:54Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `f442fd79db33` at 2026-11-26T21:27:53Z: watchdog: chatgpt task verdicts 20261126 [skip ci]
+Last commit `7b380a20dd18` at 2026-11-27T07:47:52Z: claim: mailbox verdicts 2026-11-27T07:47Z [skip ci]
 
 Vitals — trending posted: 586 · explainer posted: 424 · third posted: 1587 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: success at 2026-11-26T13:36:53Z
-- `exchange_phase_a.yml`: success at 2026-11-26T20:17:04Z
-- `exchange_phase_b.yml`: success at 2026-11-26T14:46:19Z
-- `story_forge.yml`: success at 2026-11-26T17:48:28Z
+- `exchange_phase_a.yml`: success at 2026-11-27T08:21:20Z
+- `exchange_phase_b.yml`: success at 2026-11-26T23:08:00Z
+- `story_forge.yml`: success at 2026-11-27T05:48:33Z
 - `third.yml`: success at 2026-11-26T20:07:45Z
-- `explainer.yml`: failure at 2026-11-26T18:22:48Z
-- `retro.yml`: success at 2026-11-26T08:24:59Z
-- `doctor.yml`: success at 2026-11-26T15:05:57Z
+- `explainer.yml`: failure at 2026-11-27T01:44:52Z
+- `retro.yml`: success at 2026-11-27T08:39:40Z
+- `doctor.yml`: success at 2026-11-27T05:31:00Z
 
 ## 🟢 `schwab-trader` — trading-bot (active)
 
 Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.
 
-Last commit `e4a16dcc9562` at 2026-11-25T22:28:48Z: bot: daily snapshot [skip ci]
+Last commit `f850c1b4fa3f` at 2026-11-26T22:17:22Z: bot: daily snapshot [skip ci]
 Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, open positions, cash
 
 Watched workflows:
 - `sell-brain.yml`: success at 2026-09-22T18:37:07Z
-- `watchdog.yml`: success at 2026-11-26T03:42:09Z
+- `watchdog.yml`: success at 2026-11-27T03:43:04Z
 
 ## ⚪ `Money_Machine` — product-ventures (active)
 
@@ -66,7 +66,7 @@ Last commit `41ea84afb060` at 2026-06-03T15:08:19Z: Initial commit
 
 - **Barkly** (`Money_Machine` @ `claude/barkley-mvp-mobile-qbegtj`, low risk): 0/8 steps; last human or builder commit 2026-09-23T14:39:43Z; next step 1 (thea): Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push
 - **Holdco platform** (`Money_Machine` @ `claude/ai-holdco-master-playbook-i5q80w`, low risk): 0/5 steps; last human or builder commit 2026-08-06T02:51:23Z; next step 1 (caleb): Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to)
-- **Instagram Auto Post Setup** (`Aletheia` @ `live`, high risk): 0/4 steps; last human or builder commit 2026-11-26T19:56:51Z; next step 1 (caleb): Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business.
+- **Instagram Auto Post Setup** (`Aletheia` @ `live`, high risk): 0/4 steps; last human or builder commit 2026-11-27T01:50:39Z; next step 1 (caleb): Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business.
 - **Open Range demo films** (`Money_Machine` @ `claude/open-range-promo-video-4n7k7o`, low risk): 0/4 steps; last human or builder commit 2026-09-23T12:07:14Z; next step 1 (thea): Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open
 - **Schwab trader** (`schwab-trader` @ `main`, high risk): 0/5 steps; last human or builder commit never; next step 1 (caleb): Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it
 
