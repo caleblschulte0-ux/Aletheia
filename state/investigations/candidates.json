@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-27T01:50:39Z",
+  "generated_at": "2026-11-27T12:52:19Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,8 +30,8 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 0,
-      "flagged": 0
+      "rows_scanned": 13,
+      "flagged": 1
     },
     {
       "check": "sf_food_safety",
@@ -40,7 +40,7 @@
       "flagged": 4
     }
   ],
-  "candidate_count": 45,
+  "candidate_count": 46,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -903,6 +903,29 @@
       "source": "EPA ECHO (enforcement & compliance)",
       "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N172GA",
+      "summary": "N172GA (B190), owner ALPINE AVIATION INC: non-scheduled aircraft 1725ft near FSD (0nm)",
+      "evidence": {
+        "tail": "N172GA",
+        "type": "B190",
+        "callsign": "AIP1578",
+        "owner_operator": "ALPINE AVIATION INC",
+        "squawk": "4205",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": false,
+        "altitude_ft": 1725.0,
+        "distance_from_fsd_nm": 0.2,
+        "times_seen": 1,
+        "first_seen": "2026-11-27"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     },
     {
       "check": "sf_food_safety",

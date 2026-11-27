@@ -90,6 +90,13 @@
     "owner_operator": "MEDARY AVIATION LLC",
     "type": "C172"
   },
+  "N172GA": {
+    "count": 1,
+    "first_seen": "2026-11-27",
+    "last_seen": "2026-11-27",
+    "owner_operator": "ALPINE AVIATION INC",
+    "type": "B190"
+  },
   "N185MV": {
     "count": 2,
     "first_seen": "2026-11-09",
