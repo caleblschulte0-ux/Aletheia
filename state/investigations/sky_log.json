@@ -104,6 +104,13 @@
     "owner_operator": "SOUTHWEST AVIATION INC DIV, MIDWEST AVIATION",
     "type": "BE20"
   },
+  "N188JF": {
+    "count": 1,
+    "first_seen": "2026-11-28",
+    "last_seen": "2026-11-28",
+    "owner_operator": "HAWKERBLUE LLC",
+    "type": "BE40"
+  },
   "N202FD": {
     "count": 1,
     "first_seen": "2026-11-09",
@@ -124,6 +131,13 @@
     "last_seen": "2026-11-06",
     "owner_operator": "DALE AVIATION",
     "type": "BE9L"
+  },
+  "N234CT": {
+    "count": 1,
+    "first_seen": "2026-11-28",
+    "last_seen": "2026-11-28",
+    "owner_operator": "AIRPLANES2 GO LLC",
+    "type": "RS21"
   },
   "N24PC": {
     "count": 1,
@@ -245,11 +259,18 @@
     "type": "C172"
   },
   "N5437F": {
-    "count": 2,
+    "count": 3,
     "first_seen": "2026-11-19",
-    "last_seen": "2026-11-22",
+    "last_seen": "2026-11-28",
     "owner_operator": "LEGACY AVIATION LLC",
     "type": "P28A"
+  },
+  "N560JD": {
+    "count": 1,
+    "first_seen": "2026-11-28",
+    "last_seen": "2026-11-28",
+    "owner_operator": "BIG MOUNTAIN AVIATION INC",
+    "type": "C560"
   },
   "N5900J": {
     "count": 1,
