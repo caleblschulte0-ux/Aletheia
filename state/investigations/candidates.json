@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-27T23:37:20Z",
+  "generated_at": "2026-11-28T08:12:00Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -23,14 +23,14 @@
     },
     {
       "check": "cms_care_compare_nh",
-      "ok": true,
-      "rows_scanned": 96,
+      "ok": false,
+      "error": "HTTP Error 403: Forbidden",
       "flagged": 0
     },
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 12,
+      "rows_scanned": 3,
       "flagged": 0
     },
     {
